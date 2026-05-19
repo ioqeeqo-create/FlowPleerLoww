@@ -4184,6 +4184,7 @@ async function ymRotorPostFeedback(oauth, station, type, fields = {}, batchId = 
   if (fields.trackId != null) form.set('trackId', String(fields.trackId))
   if (fields.totalPlayedSeconds != null) form.set('totalPlayedSeconds', String(fields.totalPlayedSeconds))
   if (fields.from) form.set('from', String(fields.from))
+  if (fields.moodEnergy) form.set('moodEnergy', String(fields.moodEnergy))
   const path =
     `/rotor/station/${encodeURIComponent(station)}/feedback` +
     (batchId ? `?batch-id=${encodeURIComponent(batchId)}` : '')
@@ -4206,19 +4207,20 @@ ipcMain.handle('yandex-my-wave-fetch', async (e, { token, mode, queueTrackId, ra
     const setPath = `/rotor/station/${encodeURIComponent(YM_MY_WAVE_STATION)}/settings3`
     try {
       await httpsPostFormJson('api.music.yandex.net', setPath, Object.fromEntries(settingsForm), h, 15000)
-    } catch (_) {}
+    } catch (err) {
+      return { ok: false, error: `Не удалось применить настроение: ${String(err?.message || err)}` }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 140))
+
     const q = resetSession ? '' : String(queueTrackId || '').trim()
-    const needFreshRadio = resetSession || !q
-    if (needFreshRadio) {
-      const from = String(radioFrom || `flow-desktop-${Date.now()}`).slice(0, 120)
+    if (!q || resetSession) {
+      const from = String(radioFrom || `nexory-wave-${Date.now()}`).slice(0, 120)
       try {
-        await ymRotorPostFeedback(oauth, YM_MY_WAVE_STATION, 'radioStarted', { from }, '')
+        await ymRotorPostFeedback(oauth, YM_MY_WAVE_STATION, 'radioStarted', { from, moodEnergy }, '')
       } catch (_) {}
     }
 
-    let path =
-      `/rotor/station/${encodeURIComponent(YM_MY_WAVE_STATION)}/tracks?settings2=true` +
-      `&moodEnergy=${encodeURIComponent(moodEnergy)}`
+    let path = `/rotor/station/${encodeURIComponent(YM_MY_WAVE_STATION)}/tracks?settings2=true`
     if (q) path += `&queue=${encodeURIComponent(q)}`
     const tr = await httpsGetJson('api.music.yandex.net', path, h, 25000)
     if (tr?.body?.error) {

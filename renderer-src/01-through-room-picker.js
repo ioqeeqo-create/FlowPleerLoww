@@ -194,6 +194,7 @@ function waveEngine() {
           mode: String(mode || 'default'),
           queueTrackId: resetSession ? '' : String(queueTrackId || '').trim(),
           resetSession: !!resetSession,
+          radioFrom: 'nexory-wave',
         })
         if (!res?.ok) return null
         return res

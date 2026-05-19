@@ -661,7 +661,6 @@ async function maybePreloadMyWave(force = false) {
   }
   if (getMyWaveSeedTracks().length < 3) return
   if (getMyWaveSource() === 'yandex') {
-    loadYandexWaveRecentIds().forEach((key) => _myWaveSeenKeys.add(key))
     const anchor = sanitizeTrack(currentTrack || queue[queueIndex] || null)
     if (anchor?.id) syncYandexWaveQueueHintFromTrack(anchor)
     else if (_yandexWaveRotorQueueHint) {
@@ -680,7 +679,6 @@ async function maybePreloadMyWave(force = false) {
           .filter(Boolean),
       )
       _myWaveSeenKeys.forEach((key) => existing.add(key))
-      loadYandexWaveRecentIds().forEach((key) => existing.add(key))
       const fresh = []
       tracks.forEach((track) => {
         const key = getMyWaveTrackUniqueKey(track)
@@ -795,8 +793,8 @@ async function startMyWave() {
   showToast('Моя волна подбирает новые треки...')
   try {
     const waveAsk = getMyWaveSource() === 'yandex' ? 5 : (WE?.MY_WAVE_MIN_TRACKS ?? 10)
-    _myWaveSeenKeys = new Set(loadYandexWaveRecentIds())
     const ymReset = getMyWaveSource() === 'yandex'
+    _myWaveSeenKeys = ymReset ? new Set() : new Set(loadYandexWaveRecentIds())
     const tracks = await findMyWaveRecommendations(waveAsk, getMyWaveMode(), ymReset ? { resetSession: true } : undefined)
     const unique = []
     ;(tracks || []).forEach((track) => {

@@ -4910,11 +4910,15 @@ body.media-player-bar-hidden.media-page-active {
 }
 .main-hub-panel--wave #my-wave .my-wave-orb.my-wave-orb--hero:not(.my-wave-orb--rooms)::before {
   background: radial-gradient(88% 72% at 16% 30%, color-mix(in srgb, var(--wave-c1) 44%, transparent), transparent 68%);
-  animation: myWaveMoodDriftA 8.5s ease-in-out infinite alternate;
+  opacity: 0.38;
+  animation: none;
+  transform: none;
 }
 .main-hub-panel--wave #my-wave .my-wave-orb.my-wave-orb--hero:not(.my-wave-orb--rooms)::after {
   background: radial-gradient(82% 68% at 84% 42%, color-mix(in srgb, var(--wave-c2) 40%, transparent), transparent 65%);
-  animation: myWaveMoodDriftB 10.5s ease-in-out infinite alternate;
+  opacity: 0.32;
+  animation: none;
+  transform: none;
 }
 .main-hub-panel--wave #my-wave .my-wave-orb--hero:not(.my-wave-orb--rooms) .my-wave-orb-core {
   z-index: 2;
@@ -4951,11 +4955,15 @@ body.media-player-bar-hidden.media-page-active {
 }
 .rooms-wave-my-wave .my-wave-orb.my-wave-orb--hero.my-wave-orb--rooms::before {
   background: radial-gradient(90% 75% at 20% 28%, color-mix(in srgb, var(--wave-c1) 34%, transparent), transparent 70%);
-  animation: myWaveMoodDriftA 9s ease-in-out infinite alternate;
+  opacity: 0.34;
+  animation: none;
+  transform: none;
 }
 .rooms-wave-my-wave .my-wave-orb.my-wave-orb--hero.my-wave-orb--rooms::after {
   background: radial-gradient(78% 65% at 80% 46%, color-mix(in srgb, var(--wave-c2) 30%, transparent), transparent 68%);
-  animation: myWaveMoodDriftB 11s ease-in-out infinite alternate;
+  opacity: 0.3;
+  animation: none;
+  transform: none;
 }
 .rooms-wave-my-wave .my-wave-orb.my-wave-orb--hero.my-wave-orb--rooms .my-wave-orb-core {
   z-index: 2;
@@ -15396,13 +15404,24 @@ body.flow-slider-style-wave .flow-slider-host--wave .home-slider-wave-canvas {
   overflow: hidden !important;
 }
 
-#page-home.media-queue-off #home-media-player .home-clone-cover {
-  width: 100% !important;
-  max-width: min(100%, 380px) !important;
-  height: auto !important;
-  min-height: 0 !important;
-  max-height: min(40vh, 380px) !important;
+#page-home.media-queue-off #home-media-player .home-clone-cover-wrap {
+  position: relative !important;
+  width: min(100%, 360px) !important;
   aspect-ratio: 1 / 1 !important;
+  min-height: 0 !important;
+}
+#page-home.media-queue-off #home-media-player .home-clone-cover {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  aspect-ratio: auto !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-color: rgba(8, 10, 16, 0.42) !important;
   border-radius: 20px !important;
   box-shadow: 0 22px 52px rgba(0, 0, 0, 0.48) !important;
   filter: none !important;
@@ -16583,20 +16602,28 @@ body.wave-to-media-transition #page-home {
   overflow: visible !important;
 }
 #page-home.media-queue-off #home-media-player .home-clone-cover-wrap {
-  width: 100% !important;
-  max-width: min(100%, 380px) !important;
-  margin-inline: auto !important;
-  align-self: center !important;
-}
-#page-home.media-queue-off #home-media-player .home-clone-cover {
-  width: 100% !important;
+  position: relative !important;
+  width: min(100%, 360px) !important;
+  max-width: min(100%, 360px) !important;
+  aspect-ratio: 1 / 1 !important;
   height: auto !important;
   min-height: 0 !important;
-  max-height: min(40vh, 380px) !important;
-  aspect-ratio: 1 / 1 !important;
-  object-fit: cover;
-  background-size: cover !important;
-  background-position: center !important;
+  margin-inline: auto !important;
+  align-self: center !important;
+  flex-shrink: 0 !important;
+}
+#page-home.media-queue-off #home-media-player .home-clone-cover {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  aspect-ratio: auto !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-position: center center !important;
+  background-color: rgba(8, 10, 16, 0.42) !important;
 }
 #page-home.media-queue-off #home-media-player .home-clone-main {
   gap: 10px !important;
