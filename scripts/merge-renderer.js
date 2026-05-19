@@ -47,11 +47,11 @@ try {
   // Допускаем пробелы, одинарные кавычки, defer/async, относительный путь ./renderer.js
   const re =
     /<script\b[^>]*\bsrc\s*=\s*["'](?:\.\/)?renderer\.js(?:\?[^"']*)?["'][^>]*>\s*<\/script>/i
+  let out = html
   const matches = html.match(re)
-  const next = html.replace(re, replacement)
   if (matches && matches.length > 0) {
-    if (next !== html) {
-      fs.writeFileSync(indexPath, next, 'utf8')
+    out = out.replace(re, replacement)
+    if (out !== html) {
       console.log('merge-renderer: index.html → renderer.js?v=' + cacheToken)
     } else {
       console.warn(
@@ -62,6 +62,25 @@ try {
     console.warn(
       'merge-renderer: в index.html не найден <script … src="…renderer.js…"> — пропуск кэш-баста. Запускай из каталога приложения (например flow_fixed): npm run merge-renderer',
     )
+  }
+  const stylesPath = path.join(root, 'styles.css')
+  const stylesRe =
+    /<link\b[^>]*\bhref\s*=\s*["']styles\.css(?:\?[^"']*)?["'][^>]*>/i
+  if (stylesRe.test(out)) {
+    const stylesCss = fs.readFileSync(stylesPath, 'utf8')
+    const stylesHash = crypto.createHash('sha256').update(stylesCss).digest('hex').slice(0, 12)
+    const stylesToken = `${stylesHash}-${runStamp}`
+    const outBeforeStyles = out
+    out = out.replace(
+      stylesRe,
+      (m) => m.replace(/styles\.css(?:\?[^"']*)?/i, `styles.css?v=${stylesToken}`),
+    )
+    if (out !== outBeforeStyles) {
+      console.log('merge-renderer: index.html → styles.css?v=' + stylesToken)
+    }
+  }
+  if (out !== html) {
+    fs.writeFileSync(indexPath, out, 'utf8')
   }
 } catch (e) {
   console.warn('merge-renderer: не удалось обновить кэш-баст в index.html:', e && e.message ? e.message : e)

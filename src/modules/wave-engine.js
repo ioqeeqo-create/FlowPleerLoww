@@ -84,6 +84,8 @@
     const fetchYandexRotorMyWave = typeof ctx.fetchYandexRotorMyWave === 'function' ? ctx.fetchYandexRotorMyWave : null
     const getYandexWaveQueueHint = typeof ctx.getYandexWaveQueueHint === 'function' ? ctx.getYandexWaveQueueHint : () => ''
     const setYandexWaveQueueHint = typeof ctx.setYandexWaveQueueHint === 'function' ? ctx.setYandexWaveQueueHint : () => {}
+    const getYandexLastRotorPackKey = typeof ctx.getYandexLastRotorPackKey === 'function' ? ctx.getYandexLastRotorPackKey : () => ''
+    const setYandexLastRotorPackKey = typeof ctx.setYandexLastRotorPackKey === 'function' ? ctx.setYandexLastRotorPackKey : () => {}
     const onWaveEarlySkip = typeof ctx.onWaveEarlySkip === 'function' ? ctx.onWaveEarlySkip : null
 
     function getMyWaveTrackKey(track) {
@@ -453,46 +455,100 @@
         // Яндекс отдаёт пачку 3–5 треков в sequence — забираем всю пачку, иначе queue зацикливает те же 4–5 треков.
         const yaChunk = 5
         const queueHint = resetSession ? '' : String(getYandexWaveQueueHint() || '').trim()
+        const packKeyFromRows = (list) =>
+          list
+            .map((t) => getMyWaveTrackKey(t))
+            .filter(Boolean)
+            .sort()
+            .join('|')
+        const filterRotorRows = (list, useQueueDedupe) => {
+          const selectedIds = new Set()
+          const selectedSigs = new Set()
+          if (useQueueDedupe) {
+            ;(getQueue() || []).forEach((track) => {
+              const key = getMyWaveTrackKey(track)
+              if (key) selectedIds.add(key)
+              const sig = normalizeTrackSignature(track)
+              if (sig) selectedSigs.add(sig)
+            })
+            const ct = getCurrentTrack()
+            if (ct) {
+              const key = getMyWaveTrackKey(ct)
+              if (key) selectedIds.add(key)
+              const sig = normalizeTrackSignature(ct)
+              if (sig) selectedSigs.add(sig)
+            }
+          }
+          const packSeen = new Set()
+          const out = []
+          for (const track of list) {
+            const key = getMyWaveTrackKey(track)
+            const sig = normalizeTrackSignature(track)
+            if (!sig) continue
+            if (packSeen.has(sig) || (key && packSeen.has(key))) continue
+            if (selectedIds.has(key) || selectedSigs.has(sig)) continue
+            const sec = getNormalizedTrackDurationSec(track)
+            if (sec != null && sec < WAVE_MY_WAVE_MIN_DURATION_SEC) continue
+            if (key) packSeen.add(key)
+            packSeen.add(sig)
+            out.push(track)
+            if (out.length >= yaChunk) break
+          }
+          return out
+        }
         let pack = null
         try {
-          pack = await fetchYandexRotorMyWave({ mode: modeId, queueTrackId: queueHint, resetSession })
+          pack = await fetchYandexRotorMyWave({
+            mode: modeId,
+            queueTrackId: queueHint,
+            resetSession,
+            radioFrom: `nexory-wave-${modeId}-${Date.now()}`,
+          })
         } catch {
           pack = null
         }
-        const rows = Array.isArray(pack?.tracks) ? pack.tracks.map((t) => sanitizeTrack(t)).filter(Boolean) : []
+        let rows = Array.isArray(pack?.tracks) ? pack.tracks.map((t) => sanitizeTrack(t)).filter(Boolean) : []
         if (!rows.length) return []
-        if (pack?.nextQueueTrackId) setYandexWaveQueueHint(String(pack.nextQueueTrackId))
-        const selectedIds = new Set()
-        const selectedSigs = new Set()
-        if (!resetSession) {
-          ;(getQueue() || []).forEach((track) => {
-            const key = getMyWaveTrackKey(track)
-            if (key) selectedIds.add(key)
-            const sig = normalizeTrackSignature(track)
-            if (sig) selectedSigs.add(sig)
-          })
+        let packKey = packKeyFromRows(rows)
+        const prevPackKey = String(getYandexLastRotorPackKey() || '')
+        if (packKey && prevPackKey && packKey === prevPackKey) {
+          try {
+            const retryPack = await fetchYandexRotorMyWave({
+              mode: modeId,
+              queueTrackId: '',
+              resetSession: true,
+              radioFrom: `nexory-wave-retry-${modeId}-${Date.now()}`,
+            })
+            const retryRows = Array.isArray(retryPack?.tracks)
+              ? retryPack.tracks.map((t) => sanitizeTrack(t)).filter(Boolean)
+              : []
+            if (retryRows.length) {
+              pack = retryPack
+              rows = retryRows
+              packKey = packKeyFromRows(rows)
+            }
+          } catch (_) {}
         }
-        const ct = getCurrentTrack()
-        if (ct) {
-          const key = getMyWaveTrackKey(ct)
-          if (key) selectedIds.add(key)
-          const sig = normalizeTrackSignature(ct)
-          if (sig) selectedSigs.add(sig)
-        }
-        const packSeen = new Set()
-        const filtered = []
-        for (const track of rows) {
-          const key = getMyWaveTrackKey(track)
-          const sig = normalizeTrackSignature(track)
-          if (!sig) continue
-          if (packSeen.has(sig) || (key && packSeen.has(key))) continue
-          if (selectedIds.has(key) || selectedSigs.has(sig)) continue
-          const sec = getNormalizedTrackDurationSec(track)
-          if (sec != null && sec < WAVE_MY_WAVE_MIN_DURATION_SEC) continue
-          if (key) packSeen.add(key)
-          packSeen.add(sig)
-          filtered.push(track)
-          if (filtered.length >= yaChunk) break
+        if (setYandexLastRotorPackKey) setYandexLastRotorPackKey(packKey)
+        let filtered = filterRotorRows(rows, !resetSession)
+        if (!filtered.length && rows.length) {
+          try {
+            const retryPack = await fetchYandexRotorMyWave({
+              mode: modeId,
+              queueTrackId: '',
+              resetSession: true,
+              radioFrom: `nexory-wave-fresh-${modeId}-${Date.now()}`,
+            })
+            const retryRows = Array.isArray(retryPack?.tracks)
+              ? retryPack.tracks.map((t) => sanitizeTrack(t)).filter(Boolean)
+              : []
+            if (retryRows.length) {
+              rows = retryRows
+              packKey = packKeyFromRows(rows)
+              if (setYandexLastRotorPackKey) setYandexLastRotorPackKey(packKey)
+              filtered = filterRotorRows(rows, false)
+            }
+          } catch (_) {}
         }
         return filtered
       }

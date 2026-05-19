@@ -6,7 +6,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
   <!-- bump ?v= when profile/CSS/JS layout changes so Electron reloads assets -->
-  <link rel="stylesheet" href="styles.css?v=26aa32532737-mpc53vtx">
+  <link rel="stylesheet" href="styles.css?v=2c78ab661974-mpd5l1al">
 </head>
 <body>
 
@@ -850,6 +850,10 @@
         <div class="visual-settings">
           <div class="vs-section glass-card">
             <div class="vs-section-title">Плеер</div>
+            <div class="vs-row">
+              <label class="vs-label">Очередь в разделе «Медиа»</label>
+              <div class="vs-toggle active" id="toggle-media-show-queue" onclick="toggleMediaShowQueue()" title="Показывать список «Дальше в очереди» на странице медиа"><div class="vs-toggle-thumb"></div></div>
+            </div>
             <div class="vs-row vs-row--stack">
               <label class="vs-label">Расположение названия в медиа</label>
               <div class="vs-btn-group vs-media-preview-grid" role="group" aria-label="Расположение текста в медиа">
@@ -1652,7 +1656,7 @@
     <div class="flow-game-sleep-title">Sleep mode</div>
     <div class="flow-game-sleep-sub">Только воспроизведение · верни Nexory на экран</div>
   </div>
-  <script src="renderer.js?v=714512f9b2e6-mpc53vtx"></script>
+  <script src="renderer.js?v=8f30a9c5aab1-mpd5l1al"></script>
 </body>
 </html>
 

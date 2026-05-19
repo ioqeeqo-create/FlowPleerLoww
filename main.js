@@ -4170,10 +4170,8 @@ function parseYmRotorTracksBody(body) {
     const row = mapYmRotorTrackToFlow(item.track, batchId, YM_MY_WAVE_STATION)
     if (row) tracks.push(row)
   }
-  // queue в следующем GET — id точки продолжения (последний трек выдачи, не первый).
-  const tail = tracks.length ? tracks[tracks.length - 1] : null
-  const nextQueueTrackId = tail?.id ? String(tail.id) : ''
-  return { tracks, batchId, nextQueueTrackId }
+  // queue в следующем GET — id трека, который только что закончили (feedback trackFinished/skip), не хвост пачки.
+  return { tracks, batchId, nextQueueTrackId: '' }
 }
 
 /** POST /rotor/station/.../feedback (form); batch-id в query при необходимости. */
@@ -4184,7 +4182,6 @@ async function ymRotorPostFeedback(oauth, station, type, fields = {}, batchId = 
   if (fields.trackId != null) form.set('trackId', String(fields.trackId))
   if (fields.totalPlayedSeconds != null) form.set('totalPlayedSeconds', String(fields.totalPlayedSeconds))
   if (fields.from) form.set('from', String(fields.from))
-  if (fields.moodEnergy) form.set('moodEnergy', String(fields.moodEnergy))
   const path =
     `/rotor/station/${encodeURIComponent(station)}/feedback` +
     (batchId ? `?batch-id=${encodeURIComponent(batchId)}` : '')
@@ -4199,24 +4196,24 @@ ipcMain.handle('yandex-my-wave-fetch', async (e, { token, mode, queueTrackId, ra
     if (!oauth) return { ok: false, error: 'Пустой токен Яндекса' }
     const h = ymOAuthHeaders(oauth)
     const moodEnergy = mapFlowWaveModeToYmMoodEnergy(mode)
-    const settingsForm = new URLSearchParams()
-    settingsForm.set('moodEnergy', moodEnergy)
-    settingsForm.set('diversity', 'default')
-    settingsForm.set('language', 'any')
-    settingsForm.set('type', 'rotor')
-    const setPath = `/rotor/station/${encodeURIComponent(YM_MY_WAVE_STATION)}/settings3`
-    try {
-      await httpsPostFormJson('api.music.yandex.net', setPath, Object.fromEntries(settingsForm), h, 15000)
-    } catch (err) {
-      return { ok: false, error: `Не удалось применить настроение: ${String(err?.message || err)}` }
-    }
-    await new Promise((resolve) => setTimeout(resolve, 140))
-
     const q = resetSession ? '' : String(queueTrackId || '').trim()
-    if (!q || resetSession) {
-      const from = String(radioFrom || `nexory-wave-${Date.now()}`).slice(0, 120)
+
+    if (resetSession) {
+      const settingsForm = new URLSearchParams()
+      settingsForm.set('moodEnergy', moodEnergy)
+      settingsForm.set('diversity', 'default')
+      settingsForm.set('language', 'any')
+      settingsForm.set('type', 'rotor')
+      const setPath = `/rotor/station/${encodeURIComponent(YM_MY_WAVE_STATION)}/settings3`
       try {
-        await ymRotorPostFeedback(oauth, YM_MY_WAVE_STATION, 'radioStarted', { from, moodEnergy }, '')
+        await httpsPostFormJson('api.music.yandex.net', setPath, Object.fromEntries(settingsForm), h, 15000)
+      } catch (err) {
+        return { ok: false, error: `Не удалось применить настроение: ${String(err?.message || err)}` }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 220))
+      const from = String(radioFrom || `nexory-wave-${moodEnergy}-${Date.now()}`).slice(0, 120)
+      try {
+        await ymRotorPostFeedback(oauth, YM_MY_WAVE_STATION, 'radioStarted', { from }, '')
       } catch (_) {}
     }
 

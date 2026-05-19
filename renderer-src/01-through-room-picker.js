@@ -121,6 +121,21 @@ let _lastPlaybackSyncSeq = 0
 let _hostPlaybackSyncSeq = 0
 let _lastGuestP2pPlaybackAt = 0
 let _lastRoomServerLoadAt = 0
+/** Интервал P2P-синхронизации позиции хоста (мс). */
+const ROOM_PLAYBACK_SYNC_INTERVAL_MS = 700
+/** Гость подстраивает позицию, если расхождение больше этого (с). */
+const ROOM_GUEST_SYNC_DRIFT_SEC = 0.35
+/** Базовая компенсация сети поверх RTT (с). */
+const ROOM_GUEST_LATENCY_PAD_SEC = 0.28
+/** Доп. компенсация источника (с): Яндекс / остальные — в applyRoomGuestPlaybackTime. */
+const ROOM_GUEST_SOURCE_EXTRA_YANDEX_SEC = 0.75
+const ROOM_GUEST_SOURCE_EXTRA_DEFAULT_SEC = 0.25
+/** Быстрый старт гостя: ждём canplay (не canplaythrough), мс. */
+const ROOM_GUEST_CANPLAY_WAIT_MS = 2500
+/** Пауза хоста после canplay перед командой гостям (мс). */
+const ROOM_HOST_PRESYNC_DELAY_MS = 350
+const ROOM_HOST_PRESYNC_DELAY_YANDEX_MS = 380
+let _hostRoomPlaybackSyncTimer = null
 let _friendPresence = new Map()
 let _friendsPollTimer = null
 let _friendsForceRefreshTimer = null
@@ -166,6 +181,8 @@ const FRIEND_NOTIFY_COOLDOWN_MS = 90 * 1000
 let _waveEngineApi = null
 /** Яндекс «Моя волна» (rotor): queue в GET /tracks — id первого трека предыдущей выдачи. */
 let _yandexWaveRotorQueueHint = ''
+/** Последняя пачка rotor (id треков) — для детекта зацикливания API. */
+let _yandexLastRotorPackKey = ''
 function waveEngine() {
   if (!_waveEngineApi && WE?.createWaveEngine) {
     _waveEngineApi = WE.createWaveEngine({
@@ -186,15 +203,20 @@ function waveEngine() {
       setYandexWaveQueueHint: (id) => {
         _yandexWaveRotorQueueHint = String(id || '').trim()
       },
-      fetchYandexRotorMyWave: async ({ mode, queueTrackId, resetSession }) => {
+      getYandexLastRotorPackKey: () => _yandexLastRotorPackKey,
+      setYandexLastRotorPackKey: (key) => {
+        _yandexLastRotorPackKey = String(key || '')
+      },
+      fetchYandexRotorMyWave: async ({ mode, queueTrackId, resetSession, radioFrom }) => {
         const tok = String(getSettings()?.yandexToken || '').trim()
         if (!tok || !window.api?.yandexMyWaveFetch) return null
+        const modeId = String(mode || 'default')
         const res = await window.api.yandexMyWaveFetch({
           token: tok,
-          mode: String(mode || 'default'),
+          mode: modeId,
           queueTrackId: resetSession ? '' : String(queueTrackId || '').trim(),
           resetSession: !!resetSession,
-          radioFrom: 'nexory-wave',
+          radioFrom: String(radioFrom || `nexory-wave-${modeId}-${Date.now()}`).slice(0, 120),
         })
         if (!res?.ok) return null
         return res
@@ -247,10 +269,10 @@ function mergeProfileData(base, incoming, peerId = '') {
   merged.peerId = resolvedPeerId
   // Respect explicit null/avatar removal from server instead of keeping stale cache.
   merged.avatarData = hasAvatarPatch
-    ? (next.avatarData || null)
+    ? (next.avatarData || (sameUser ? (prev.avatarData || null) : null))
     : (sameUser ? (prev.avatarData || null) : null)
   merged.bannerData = hasBannerPatch
-    ? (next.bannerData || null)
+    ? (next.bannerData || (sameUser ? (prev.bannerData || null) : null))
     : (sameUser ? (prev.bannerData || null) : null)
   merged.bio = typeof next.bio === 'string' ? next.bio : (prev.bio || '')
   merged.profileColor = typeof next.profileColor === 'string' ? next.profileColor : (prev.profileColor || '')
@@ -370,6 +392,29 @@ function updateHostLockUi() {
     bar.style.opacity = restricted ? '0.55' : ''
     bar.style.cursor = restricted ? 'not-allowed' : ''
   })
+}
+
+function amIRoomHost() {
+  const myId = String(_socialPeer?.peer?.id || '').trim()
+  if (!myId || !_roomState?.roomId) return false
+  const hostId = String(_roomState.hostPeerId || '').trim()
+  if (hostId) return hostId === myId
+  return Boolean(_roomState.host)
+}
+
+function mergeSharedQueueFromServer(serverRows = []) {
+  const incoming = (serverRows || []).map((t) => sanitizeTrack(t)).filter(Boolean)
+  if (!incoming.length) return false
+  const sigs = new Set(sharedQueue.map((t) => normalizeTrackSignature(t)).filter(Boolean))
+  let changed = false
+  incoming.forEach((track) => {
+    const sig = normalizeTrackSignature(track)
+    if (!sig || sigs.has(sig)) return
+    sigs.add(sig)
+    sharedQueue.push(track)
+    changed = true
+  })
+  return changed
 }
 
 function updateRoomUi() {
@@ -564,7 +609,7 @@ const defaultVisual = {
   effects: { orbs: false, glow: true, dyncolor: false, accentFromCover: false },
   navActiveHighlight: false,
   sidebarPosition: 'left',
-  sidebarIconRail: false,
+  sidebarIconRail: true,
   sidebarIconRailPosition: 'top',
   cardDensity: 'comfort',
   toastPosition: 'default',
@@ -1892,7 +1937,12 @@ function bindHomeProgressSeekGuards() {
     if (!el || el._flowSeekBound) continue
     el._flowSeekBound = true
     const onStart = () => { _homeProgressSeeking = true }
-    const onEnd = () => { _homeProgressSeeking = false }
+    const onEnd = () => {
+      _homeProgressSeeking = false
+      if (_roomState?.roomId && _roomState?.host && typeof broadcastPlaybackSync === 'function') {
+        broadcastPlaybackSync(true)
+      }
+    }
     el.addEventListener('pointerdown', onStart)
     el.addEventListener('pointerup', onEnd)
     el.addEventListener('pointercancel', onEnd)
@@ -6627,7 +6677,7 @@ function getPublicProfilePayload(username = _profile?.username) {
   try { custom = JSON.parse(localStorage.getItem(key) || '{}') || {} } catch {}
   return {
     username: safe,
-    peerId: _socialPeer?.peer?.id || null,
+    peerId: _socialPeer?.peer?.id || `flow-${safe}`,
     avatarData: custom.avatarData || null,
     bannerData: custom.bannerData || null,
     profileColor: custom.profileColor || '',
@@ -6690,13 +6740,12 @@ async function fetchCloudPublicProfile(username) {
   try {
     const data = await flowSocialGet(`/flow-api/v1/profile-public/${encodeURIComponent(safe)}`)
     if (!data?.username) return null
-    const hasOwn = Object.prototype.hasOwnProperty
-    const hasAvatar = hasOwn.call(data, 'avatar_data') || hasOwn.call(data, 'avatarData')
-    const hasBanner = hasOwn.call(data, 'banner_data') || hasOwn.call(data, 'bannerData')
+    const avatar = data.avatar_data ?? data.avatarData
+    const banner = data.banner_data ?? data.bannerData
     return {
       username: String(data.username || safe),
-      avatarData: hasAvatar ? (data.avatar_data ?? data.avatarData ?? null) : null,
-      bannerData: hasBanner ? (data.banner_data ?? data.bannerData ?? null) : null,
+      ...(avatar ? { avatarData: avatar } : {}),
+      ...(banner ? { bannerData: banner } : {}),
       profileColor: data.profile_color || data.profileColor || '',
       bio: data.bio || '',
       pinnedTracks: Array.isArray(data.pinned_tracks) ? data.pinned_tracks.slice(0, 5) : (Array.isArray(data.pinnedTracks) ? data.pinnedTracks.slice(0, 5) : []),
@@ -6839,13 +6888,12 @@ function startProfilesRealtimeSync() {
       peerSocial.getFriends && self ? peerSocial.getFriends(self) || [] : []
     const watchSet = new Set([self, ...friends.map((x) => String(x || '').trim().toLowerCase()).filter(Boolean)])
     if (!watchSet.has(username)) return
-    const hasOwn = Object.prototype.hasOwnProperty
-    const hasAvatar = hasOwn.call(row || {}, 'avatar_data') || hasOwn.call(row || {}, 'avatarData')
-    const hasBanner = hasOwn.call(row || {}, 'banner_data') || hasOwn.call(row || {}, 'bannerData')
+    const avatar = row?.avatar_data ?? row?.avatarData
+    const banner = row?.banner_data ?? row?.bannerData
     const cloudProfile = {
       username,
-      avatarData: hasAvatar ? (row?.avatar_data ?? row?.avatarData ?? null) : null,
-      bannerData: hasBanner ? (row?.banner_data ?? row?.bannerData ?? null) : null,
+      ...(avatar ? { avatarData: avatar } : {}),
+      ...(banner ? { bannerData: banner } : {}),
       profileColor: row?.profile_color || row?.profileColor || '',
       bio: row?.bio || '',
       pinnedTracks: Array.isArray(row?.pinned_tracks) ? row.pinned_tracks.slice(0, 5) : (Array.isArray(row?.pinnedTracks) ? row.pinnedTracks.slice(0, 5) : []),
@@ -6995,9 +7043,13 @@ async function loadRoomStateFromServer(force = false) {
     }
     // Хост не подменяет очередь снимком с сервера: иначе гонка с saveRoomStateToServer
     // затирает локальную очередь (пропадают треки, «залипает» один старый).
-    if (Array.isArray(room?.shared_queue) && !_roomState.host) {
-      sharedQueue = room.shared_queue.map((t) => sanitizeTrack(t)).filter(Boolean)
-      renderRoomQueue()
+    if (Array.isArray(room?.shared_queue)) {
+      if (!_roomState.host) {
+        sharedQueue = room.shared_queue.map((t) => sanitizeTrack(t)).filter(Boolean)
+        renderRoomQueue()
+      } else if (mergeSharedQueueFromServer(room.shared_queue)) {
+        renderRoomQueue()
+      }
     }
     applyRoomMembersRowsFromServer(members)
     if (!_roomState.host && room?.now_playing && Number(room?.playback_ts || 0) > _lastAppliedServerPlaybackTs) {
@@ -7010,21 +7062,24 @@ async function loadRoomStateFromServer(force = false) {
       const shouldReloadFromServer =
         Boolean(serverTrack) &&
         (noActiveAudio || !currentTrack || !serverSig || !currentSig || serverSig !== currentSig)
-      if (shouldReloadFromServer) playTrackObj(serverTrack, { remoteSync: true }).catch(() => {})
-      const p2pFresh = Date.now() - (_lastGuestP2pPlaybackAt || 0) < 1200
-      const targetTime = Number(state?.currentTime || 0)
-      const dur = Number(audio?.duration || 0)
-      const canSeek = Number.isFinite(targetTime) && Number.isFinite(dur) && dur > 0
-      const drift = canSeek ? Math.abs(Number(audio.currentTime || 0) - targetTime) : 0
       if (shouldReloadFromServer) {
-        if (canSeek && drift > 0.45) audio.currentTime = Math.max(0, Math.min(targetTime, dur))
-        if (state?.paused === true && !audio.paused) audio.pause()
-        if (state?.paused === false && audio.paused) audio.play().catch(() => {})
-      } else if (!p2pFresh) {
-        if (canSeek && drift > 2.0) audio.currentTime = Math.max(0, Math.min(targetTime, dur))
-        if (state?.paused === true && !audio.paused) audio.pause()
-        if (state?.paused === false && audio.paused) audio.play().catch(() => {})
+        playTrackObj(serverTrack, {
+          remoteSync: true,
+          roomGuestSyncAt: Number(state?.currentTime || 0),
+          roomGuestSyncTs: Number(room?.playback_ts || Date.now()),
+          roomGuestDuration: Number(state?.duration || 0) || undefined,
+          roomGuestPaused: typeof state?.paused === 'boolean' ? state.paused : undefined,
+        }).catch(() => {})
       }
+      const p2pFresh = Date.now() - (_lastGuestP2pPlaybackAt || 0) < 1200
+      if (!shouldReloadFromServer && !p2pFresh && typeof state?.currentTime === 'number') {
+        applyRoomGuestPlaybackTime({
+          currentTime: state.currentTime,
+          _ts: Number(room?.playback_ts || Date.now()),
+        })
+      }
+      if (state?.paused === true && !audio.paused) audio.pause()
+      if (state?.paused === false && audio.paused && audio.src) audio.play().catch(() => {})
     }
   } catch {}
 }
@@ -7060,12 +7115,12 @@ function renderRoomMembers() {
   const hostPeerId = String(_roomState?.hostPeerId || '').trim()
   const seen = new Set()
   const members = []
-  Array.from(_roomMembers.values()).forEach((raw) => {
-    if (!raw?.peerId) return
-    const pid = String(raw.peerId)
+  _roomMembers.forEach((raw, mapKey) => {
+    const pid = String(raw?.peerId || mapKey || '').trim()
+    if (!pid) return
     if (seen.has(pid)) return
     seen.add(pid)
-    let m = raw
+    let m = Object.assign({}, raw, { peerId: pid })
     if (m?.username) {
       const cached = getCachedPeerProfile(m.username)
       if (cached) m = mergeProfileData(cached, m, m?.peerId || cached?.peerId || '')
@@ -7107,7 +7162,7 @@ function renderRoomMembers() {
 }
 
 function broadcastRoomMembersState() {
-  if (!_socialPeer || !_roomState?.roomId || !_roomState.host) return
+  if (!_socialPeer || !_roomState?.roomId || !amIRoomHost()) return
   const members = Array.from(_roomMembers.entries()).map(([peerId, profile]) => ({
     peerId,
     profile: profile || null,
@@ -7123,7 +7178,7 @@ function syncRoomPresenceHeartbeat() {
   if (!_socialPeer || !_roomState?.roomId || !_profile?.username) return
   const me = getPublicProfilePayload(_profile.username)
   if (_socialPeer?.peer?.id && me) _roomMembers.set(_socialPeer.peer.id, me)
-  if (_roomState.host) {
+  if (amIRoomHost()) {
     _socialPeer.send({ type: 'room-profile-state', roomId: _roomState.roomId, profile: me, sharedQueue })
     broadcastRoomMembersState()
   } else {
@@ -7148,7 +7203,7 @@ function renderRoomQueue() {
     el.innerHTML = '<div class="flow-empty-state compact"><strong>Очередь пуста</strong><span>Добавь трек через поиск или из своих треков.</span></div>'
     return
   }
-  const canEdit = Boolean(_roomState?.host)
+  const canEdit = amIRoomHost()
   el.innerHTML = ''
   sharedQueue.forEach((t, i) => {
     const row = document.createElement('div')
@@ -7208,18 +7263,24 @@ function renderRoomNowPlaying() {
   el.textContent = `Играет сейчас: ${currentTrack.title || 'Без названия'}${currentTrack.artist ? ` — ${currentTrack.artist}` : ''}`
 }
 
-function playSharedQueueTrackAt(index) {
-  if (!_roomState?.host) return
+async function playSharedQueueTrackAt(index) {
+  if (!amIRoomHost()) return
   const idx = Number(index)
   if (!Number.isFinite(idx) || idx < 0 || idx >= sharedQueue.length) return
   const [track] = sharedQueue.splice(idx, 1)
   renderRoomQueue()
   broadcastQueueUpdate()
-  if (track) playTrackObj(track, { fromSharedQueue: true }).catch(() => {})
+  if (track) {
+    let ready = sanitizeTrack(track)
+    if (String(ready?.source || '').toLowerCase() === 'yandex') {
+      ready = await resolveYandexStreamForTrack(ready)
+    }
+    playTrackObj(ready, { fromSharedQueue: true }).catch(() => {})
+  }
 }
 
 function broadcastQueueUpdate() {
-  if (!_socialPeer || !_roomState?.roomId || !_roomState.host) return
+  if (!_socialPeer || !_roomState?.roomId || !amIRoomHost()) return
   const eventType = peerSocial?.EVENTS?.QUEUE_UPDATE || 'queue-update'
   _socialPeer.send({
     type: eventType,
@@ -7227,12 +7288,16 @@ function broadcastQueueUpdate() {
     sharedQueue,
   })
   scheduleRoomStateSave({ shared_queue: sharedQueue })
+  renderRoomQueue()
 }
 
-function enqueueSharedTrack(track) {
+async function enqueueSharedTrack(track) {
   if (!_roomState?.roomId || !track) return
-  const cleanTrack = sanitizeTrack(track)
-  if (_roomState.host) {
+  let cleanTrack = sanitizeTrack(track)
+  if (amIRoomHost()) {
+    if (String(cleanTrack?.source || '').toLowerCase() === 'yandex') {
+      cleanTrack = await resolveYandexStreamForTrack(cleanTrack)
+    }
     sharedQueue.push(cleanTrack)
     renderRoomQueue()
     broadcastQueueUpdate()
@@ -7240,12 +7305,17 @@ function enqueueSharedTrack(track) {
   }
   // Гость только отправляет запрос хосту: локальная запись sharedQueue
   // создаёт гонки и "пропадающие" треки при серверной синхронизации.
+  const sig = normalizeTrackSignature(cleanTrack)
+  if (sig && !sharedQueue.some((item) => normalizeTrackSignature(item) === sig)) {
+    sharedQueue.push(Object.assign({}, cleanTrack, { _pendingGuestAdd: true }))
+    renderRoomQueue()
+  }
   const payload = { type: 'room-queue-add', roomId: _roomState.roomId, track: cleanTrack }
   _socialPeer?.send(payload)
   if (typeof _socialPeer?.sendToPeer === 'function' && _roomState?.hostPeerId) {
     _socialPeer.sendToPeer(_roomState.hostPeerId, payload)
   }
-  showToast('Трек добавлен в очередь комнаты')
+  showToast('Трек отправлен хосту')
 }
 
 function removeSharedQueueTrack(index) {

@@ -8716,7 +8716,7 @@ body.layout-bottom-nav #player-bar.player-bar--nover .nover-bar-grid {
   align-items: center;
   justify-content: center;
   width: 100%;
-  gap: clamp(12px, 2.8vw, 22px);
+  gap: clamp(16px, 3.2vw, 28px);
   margin-top: 0;
 }
 
@@ -8776,26 +8776,28 @@ body.layout-bottom-nav #player-bar.player-bar--nover .nover-bar-grid {
 
 .progress-wrap.nover-progress-classic .time-label.time-label--elapsed {
   flex: 0 0 auto;
-  min-width: 40px;
+  min-width: 36px;
   text-align: right;
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
-  color: rgba(245,238,255,0.88);
+  color: rgba(245,238,255,0.46);
 }
 
 .progress-wrap.nover-progress-classic .time-label.time-label--duration {
   flex: 0 0 auto;
-  min-width: 40px;
+  min-width: 36px;
   text-align: left;
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
-  color: rgba(245,238,255,0.48);
+  color: rgba(245,238,255,0.42);
 }
 
 .progress-wrap.nover-progress-classic .progress-bar.progress-bar {
   flex: 1;
   min-width: 0;
-  height: 3px !important;
+  height: 2px !important;
 }
 
 .progress-bar--nover.progress-bar {
@@ -15924,10 +15926,16 @@ body.sidebar-icon-rail #sidebar .nav-label {
 
 body.sidebar-icon-rail #sidebar .nav-item .nav-icon,
 body.sidebar-icon-rail #sidebar .nav-item svg {
-  width: 18px !important;
-  height: 18px !important;
+  width: 17px !important;
+  height: 17px !important;
   margin: 0 !important;
-  opacity: 0.8 !important;
+  opacity: 0.55 !important;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+body.sidebar-icon-rail #sidebar .nav-item:hover .nav-icon,
+body.sidebar-icon-rail #sidebar .nav-item:hover svg {
+  opacity: 1 !important;
 }
 
 body.sidebar-icon-rail #sidebar .nav-item:hover {
@@ -16643,5 +16651,47 @@ body[data-active-page="settings"] #page-settings.active .visual-settings {
 body[data-active-page="settings"] .content,
 body:not(.layout-top-nav) .content {
   overflow-y: auto !important;
+}
+
+/* Zen polish — lighter player bar */
+/* Тоньше волна прогресса в нижнем плеере */
+body.flow-slider-style-wave #player-bar #progress.home-slider-wave-active,
+body.flow-slider-style-wave #player-bar.player-bar--nover .flow-slider-host--wave {
+  height: 28px !important;
+  min-height: 28px !important;
+}
+
+body.flow-slider-style-wave #player-bar .flow-slider-host--wave .home-slider-wave-canvas {
+  max-height: 28px;
+}
+
+#player-bar.player-bar--nover .play-btn.play-btn--nover-wire {
+  width: 44px !important;
+  height: 44px !important;
+}
+
+#player-bar.player-bar--nover .nover-transport-strip > .ctrl-btn.nover-strip-btn:not(.play-btn) {
+  width: 36px;
+  height: 36px;
+}
+
+#player-bar.player-bar--nover .nover-transport-strip .ctrl-side-icon {
+  width: 20px;
+  height: 20px;
+}
+
+body.layout-top-nav .nav-item .nav-icon,
+body.layout-top-nav .nav-item svg {
+  width: 17px;
+  height: 17px;
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
+}
+
+body.layout-top-nav .nav-item:hover .nav-icon,
+body.layout-top-nav .nav-item:hover svg,
+body.layout-top-nav .nav-item.active .nav-icon,
+body.layout-top-nav .nav-item.active svg {
+  opacity: 1;
 }
 
