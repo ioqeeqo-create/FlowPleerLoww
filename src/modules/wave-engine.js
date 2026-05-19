@@ -437,8 +437,9 @@
       return Array.from(new Set(queries.map((q) => q.trim()).filter(Boolean))).slice(0, 28)
     }
 
-    async function findMyWaveRecommendations(min = MY_WAVE_MIN_TRACKS, mode) {
+    async function findMyWaveRecommendations(min = MY_WAVE_MIN_TRACKS, mode, opts = {}) {
       const modeId = MY_WAVE_MODES[mode] ? mode : 'default'
+      const resetSession = !!opts?.resetSession
       const candidates = getMyWaveCandidates()
       const profile = buildMyWavePreferenceProfile(candidates)
       const target = Math.min(MY_WAVE_MAX_TRACKS, Math.max(MY_WAVE_MIN_TRACKS, Number(min) || MY_WAVE_MIN_TRACKS))
@@ -451,10 +452,10 @@
         if (!tok) return []
         // Яндекс отдаёт пачку 3–5 треков в sequence — забираем всю пачку, иначе queue зацикливает те же 4–5 треков.
         const yaChunk = 5
-        const queueHint = String(getYandexWaveQueueHint() || '').trim()
+        const queueHint = resetSession ? '' : String(getYandexWaveQueueHint() || '').trim()
         let pack = null
         try {
-          pack = await fetchYandexRotorMyWave({ mode: modeId, queueTrackId: queueHint })
+          pack = await fetchYandexRotorMyWave({ mode: modeId, queueTrackId: queueHint, resetSession })
         } catch {
           pack = null
         }
@@ -477,9 +478,9 @@
           const sig = normalizeTrackSignature(ct)
           if (sig) selectedSigs.add(sig)
         }
-        const filtered = rows.filter((track) => {
+        const filterRows = (strictQueue) => rows.filter((track) => {
           const key = getMyWaveTrackKey(track)
-          if (key && (selectedIds.has(key) || selected.has(key))) return false
+          if (strictQueue && key && (selectedIds.has(key) || selected.has(key))) return false
           const sig = normalizeTrackSignature(track)
           if (!sig || selectedSigs.has(sig)) return false
           const sec = getNormalizedTrackDurationSec(track)
@@ -488,6 +489,19 @@
           selectedSigs.add(sig)
           return true
         })
+        let filtered = filterRows(true)
+        if (!filtered.length && rows.length) {
+          selected.clear()
+          selectedSigs.clear()
+          const ct = getCurrentTrack()
+          if (ct) {
+            const ctKey = getMyWaveTrackKey(ct)
+            const ctSig = normalizeTrackSignature(ct)
+            if (ctKey) selectedIds.add(ctKey)
+            if (ctSig) selectedSigs.add(ctSig)
+          }
+          filtered = filterRows(false)
+        }
         return filtered.slice(0, yaChunk)
       }
       const queries = buildMyWaveQueries(seedTracks, modeId, profile)

@@ -186,22 +186,25 @@ function waveEngine() {
       setYandexWaveQueueHint: (id) => {
         _yandexWaveRotorQueueHint = String(id || '').trim()
       },
-      fetchYandexRotorMyWave: async ({ mode, queueTrackId }) => {
+      fetchYandexRotorMyWave: async ({ mode, queueTrackId, resetSession }) => {
         const tok = String(getSettings()?.yandexToken || '').trim()
         if (!tok || !window.api?.yandexMyWaveFetch) return null
-        return window.api.yandexMyWaveFetch({
+        const res = await window.api.yandexMyWaveFetch({
           token: tok,
           mode: String(mode || 'default'),
-          queueTrackId: String(queueTrackId || '').trim(),
+          queueTrackId: resetSession ? '' : String(queueTrackId || '').trim(),
+          resetSession: !!resetSession,
         })
+        if (!res?.ok) return null
+        return res
       },
     })
   }
   return _waveEngineApi
 }
-function findMyWaveRecommendations(min, mode) {
+function findMyWaveRecommendations(min, mode, opts) {
   const api = waveEngine()
-  return api ? api.findMyWaveRecommendations(min, mode) : Promise.resolve([])
+  return api ? api.findMyWaveRecommendations(min, mode, opts) : Promise.resolve([])
 }
 
 function getMyWaveSeedTracks() {
@@ -552,12 +555,16 @@ const defaultVisual = {
   customFontData: null,
   customFontApplyTitle: false,
   uiScale: 100,
+  uiScaleWindow: 100,
+  uiScaleFullscreen: 100,
   customBg: null,
   homeSliderStyle: 'line',
   homeWidget: { enabled: true, mode: 'bars', image: null, intensity: 100, smoothing: 72 },
   effects: { orbs: false, glow: true, dyncolor: false, accentFromCover: false },
   navActiveHighlight: false,
   sidebarPosition: 'left',
+  sidebarIconRail: false,
+  sidebarIconRailPosition: 'top',
   cardDensity: 'comfort',
   toastPosition: 'default',
   gifMode: { bg: true, track: true, playlist: true },
@@ -613,8 +620,8 @@ function getVisual() {
     }
     let raw = {}
     try { raw = JSON.parse(rawStr) } catch (_) { raw = {} }
-    if (raw.visualMode === 'premium') {
-      raw.visualMode = 'floated'
+    if (raw.visualMode === 'premium' || raw.visualMode === 'floated') {
+      raw.visualMode = 'minimal'
       try {
         localStorage.setItem('flow_visual', JSON.stringify(raw))
       } catch (_) {}
@@ -623,6 +630,9 @@ function getVisual() {
     }
     const out = Object.assign({}, defaultVisual, raw)
     out.sidebarPosition = normalizeSidebarDockPosition(out.sidebarPosition)
+    if (out.sidebarPosition === 'top' || out.sidebarPosition === 'bottom') {
+      out.sidebarPosition = 'left'
+    }
     _flowVisualMemo = { s: rawStr, out }
     return Object.assign({}, out)
   } catch {
@@ -771,7 +781,7 @@ function toggleCustomFontTitle() {
 function normalizeVisualThemeMode(mode) {
   const m = String(mode || '')
   if (m === 'liquid' || m === 'yandex') return 'liquid'
-  if (m === 'premium' || m === 'floated') return 'floated'
+  if (m === 'premium' || m === 'floated') return 'minimal'
   return 'minimal'
 }
 
@@ -791,6 +801,9 @@ function applyVisualMode(mode) {
     document.body.classList.add('visual-minimal')
   }
   syncNexoryDeskClass()
+  try {
+    applySidebarIconRail()
+  } catch (_) {}
   const minimalBtn = document.getElementById('vm-minimal')
   const floatedBtn = document.getElementById('vm-floated')
   const liquidBtn = document.getElementById('vm-liquid')
@@ -906,12 +919,67 @@ function setVisualMode(mode) {
   showToast(safe === 'liquid' ? 'Режим: Liquid Glass' : (safe === 'floated' ? 'Режим: минимал' : 'Режим: минимализм'))
 }
 
+async function syncWindowMaximizedBodyClass() {
+  try {
+    const on = await isWindowMaximizedSafe()
+    document.body.classList.toggle('window-maximized', on)
+  } catch (_) {
+    document.body.classList.remove('window-maximized')
+  }
+}
+
 async function toggleWindowMaximize() {
   try {
     if (!window.api?.maximizeToggle) return
     const r = await window.api.maximizeToggle()
     syncTitlebarMaximizeIcon(Boolean(r?.maximized))
+    try {
+      await syncWindowMaximizedBodyClass()
+      await applyUiScaleForWindowState()
+    } catch (_) {}
   } catch (_) {}
+}
+
+function clampUiScalePct(n, lo = 75, hi = 140) {
+  const x = Number(n)
+  return Number.isFinite(x) ? Math.max(lo, Math.min(hi, x)) : 100
+}
+
+function getStoredUiScaleWindow(v = getVisual()) {
+  return clampUiScalePct(v?.uiScaleWindow ?? v?.uiScale ?? 100, 75, 130)
+}
+
+function getStoredUiScaleFullscreen(v = getVisual()) {
+  return clampUiScalePct(v?.uiScaleFullscreen ?? v?.uiScale ?? 100, 75, 140)
+}
+
+async function isWindowMaximizedSafe() {
+  try {
+    return Boolean(await window.api?.isWindowMaximized?.())
+  } catch (_) {
+    return false
+  }
+}
+
+async function resolveActiveUiScalePct(v = getVisual()) {
+  const maximized = await isWindowMaximizedSafe()
+  return maximized ? getStoredUiScaleFullscreen(v) : getStoredUiScaleWindow(v)
+}
+
+function applyUiScaleCss(pct) {
+  const safe = clampUiScalePct(pct, 75, 140)
+  document.documentElement.style.setProperty('--ui-scale', String(safe / 100))
+  syncHomeConstructStackScalePct(safe)
+  return safe
+}
+
+async function applyUiScaleForWindowState(v = getVisual()) {
+  const pct = await resolveActiveUiScalePct(v)
+  applyUiScaleCss(pct)
+  if (document.getElementById('vs-scale-val')) {
+    document.getElementById('vs-scale-val').textContent = `${pct}%`
+  }
+  return pct
 }
 
 function syncTitlebarMaximizeIcon(isMaximized) {
@@ -1404,27 +1472,18 @@ function applyVisualSettings() {
   const scaleLegacyEl = document.getElementById('vs-scale')
   const scaleWindowEl = document.getElementById('vs-scale-window')
   const scaleFullscreenEl = document.getElementById('vs-scale-fullscreen')
-  const clampScale = (n, lo = 75, hi = 140) => {
-    const x = Number(n)
-    return Number.isFinite(x) ? Math.max(lo, Math.min(hi, x)) : 100
-  }
   const v0 = getVisual()
-  const activeScaleId = document.activeElement?.id || ''
-  const legacyScale = clampScale(scaleLegacyEl?.value ?? v0.uiScale ?? 100, 75, 140)
-  const windowScale = clampScale(scaleWindowEl?.value ?? legacyScale, 75, 130)
-  const fullscreenScale = clampScale(scaleFullscreenEl?.value ?? legacyScale, 75, 140)
-  let scale = windowScale
-  if (activeScaleId === 'vs-scale-fullscreen') scale = fullscreenScale
-  else if (activeScaleId === 'vs-scale-window') scale = windowScale
-  else if (activeScaleId === 'vs-scale') scale = legacyScale
-  else if (scaleWindowEl) scale = windowScale
-  else if (scaleFullscreenEl) scale = fullscreenScale
-  else scale = legacyScale
+  const windowScale = clampUiScalePct(scaleWindowEl?.value ?? v0.uiScaleWindow ?? v0.uiScale ?? 100, 75, 130)
+  const fullscreenScale = clampUiScalePct(
+    scaleFullscreenEl?.value ?? v0.uiScaleFullscreen ?? v0.uiScale ?? 100,
+    75,
+    140
+  )
+  const legacyScale = clampUiScalePct(scaleLegacyEl?.value ?? v0.uiScale ?? 100, 75, 140)
 
-  // Keep all scale sliders in sync so blur/brightness changes never reset UI scale.
-  if (scaleLegacyEl && Number(scaleLegacyEl.value) !== scale) scaleLegacyEl.value = String(scale)
-  if (scaleWindowEl && Number(scaleWindowEl.value) !== scale) scaleWindowEl.value = String(Math.max(75, Math.min(130, scale)))
-  if (scaleFullscreenEl && Number(scaleFullscreenEl.value) !== scale) scaleFullscreenEl.value = String(scale)
+  if (scaleWindowEl) scaleWindowEl.value = String(windowScale)
+  if (scaleFullscreenEl) scaleFullscreenEl.value = String(fullscreenScale)
+  if (scaleLegacyEl) scaleLegacyEl.value = String(legacyScale)
 
   document.getElementById('vs-blur-val').textContent   = blur + 'px'
   document.getElementById('vs-bright-val').textContent = bright + '%'
@@ -1432,17 +1491,28 @@ function applyVisualSettings() {
   const glassTrLabel = Number.isInteger(glassTr) ? `${glassTr}%` : `${glassTr.toFixed(1)}%`
   if (document.getElementById('vs-glass-val')) document.getElementById('vs-glass-val').textContent = glassTrLabel
   document.getElementById('vs-panel-blur-val').textContent = pb + 'px'
-  if (document.getElementById('vs-scale-val')) document.getElementById('vs-scale-val').textContent = scale + '%'
-  if (document.getElementById('vs-scale-window-val')) document.getElementById('vs-scale-window-val').textContent = scale + '%'
-  if (document.getElementById('vs-scale-fullscreen-val')) document.getElementById('vs-scale-fullscreen-val').textContent = scale + '%'
+  if (document.getElementById('vs-scale-val')) document.getElementById('vs-scale-val').textContent = legacyScale + '%'
+  if (document.getElementById('vs-scale-window-val')) {
+    document.getElementById('vs-scale-window-val').textContent = windowScale + '%'
+  }
+  if (document.getElementById('vs-scale-fullscreen-val')) {
+    document.getElementById('vs-scale-fullscreen-val').textContent = fullscreenScale + '%'
+  }
 
   const v = getVisual()
-  saveVisual({ blur:+blur, bright:+bright, glass:+glass, panelBlur:+pb, uiScale:+scale })
+  saveVisual({
+    blur: +blur,
+    bright: +bright,
+    glass: +glass,
+    panelBlur: +pb,
+    uiScaleWindow: windowScale,
+    uiScaleFullscreen: fullscreenScale,
+    uiScale: legacyScale,
+  })
 
   document.documentElement.style.setProperty('--glass-blur', pb + 'px')
-  document.documentElement.style.setProperty('--glass-bg', `rgba(255,255,255,${glass/100})`)
-  document.documentElement.style.setProperty('--ui-scale', String((+scale || 100) / 100))
-  syncHomeConstructStackScalePct(+scale || 100)
+  document.documentElement.style.setProperty('--glass-bg', `rgba(255,255,255,${glass / 100})`)
+  void applyUiScaleForWindowState(getVisual())
   applyToastPosition(v.toastPosition || 'default')
 
   applyVisualBackdropFilters(+blur, +bright)
@@ -2249,8 +2319,8 @@ function initVisualSettings() {
   setSlider('vs-glass', glassTransparencyFromStored(v.glass))
   setSlider('vs-panel-blur', v.panelBlur)
   setSlider('vs-scale', v.uiScale || 100)
-  setSlider('vs-scale-window', v.uiScale || 100)
-  setSlider('vs-scale-fullscreen', v.uiScale || 100)
+  setSlider('vs-scale-window', v.uiScaleWindow ?? v.uiScale ?? 100)
+  setSlider('vs-scale-fullscreen', v.uiScaleFullscreen ?? v.uiScale ?? 100)
   // Labels
   if (document.getElementById('vs-blur-val')) document.getElementById('vs-blur-val').textContent = v.blur + 'px'
   if (document.getElementById('vs-bright-val')) document.getElementById('vs-bright-val').textContent = v.bright + '%'
@@ -2260,15 +2330,18 @@ function initVisualSettings() {
   }
   if (document.getElementById('vs-panel-blur-val')) document.getElementById('vs-panel-blur-val').textContent = v.panelBlur + 'px'
   if (document.getElementById('vs-scale-val')) document.getElementById('vs-scale-val').textContent = (v.uiScale || 100) + '%'
-  if (document.getElementById('vs-scale-window-val')) document.getElementById('vs-scale-window-val').textContent = (v.uiScale || 100) + '%'
-  if (document.getElementById('vs-scale-fullscreen-val')) document.getElementById('vs-scale-fullscreen-val').textContent = (v.uiScale || 100) + '%'
+  if (document.getElementById('vs-scale-window-val')) {
+    document.getElementById('vs-scale-window-val').textContent = getStoredUiScaleWindow(v) + '%'
+  }
+  if (document.getElementById('vs-scale-fullscreen-val')) {
+    document.getElementById('vs-scale-fullscreen-val').textContent = getStoredUiScaleFullscreen(v) + '%'
+  }
   // CSS vars
   document.documentElement.style.setProperty('--accent', v.accent)
   document.documentElement.style.setProperty('--accent2', v.accent2)
   document.documentElement.style.setProperty('--glass-blur', v.panelBlur + 'px')
   document.documentElement.style.setProperty('--glass-bg', `rgba(255,255,255,${v.glass/100})`)
-  document.documentElement.style.setProperty('--ui-scale', String((v.uiScale || 100) / 100))
-  syncHomeConstructStackScalePct(v.uiScale || 100)
+  void applyUiScaleForWindowState(v)
   applyVisualMode(v.visualMode || 'minimal')
   syncHomeLayoutConstructorUi()
   syncHomeEditorZoomFromStorage()
@@ -2302,6 +2375,9 @@ function initVisualSettings() {
   const navToggle = document.getElementById('toggle-nav-active')
   if (navToggle) navToggle.classList.toggle('active', Boolean(v.navActiveHighlight))
   applySidebarPosition(v.sidebarPosition || 'left')
+  try {
+    applySidebarIconRail()
+  } catch (_) {}
   const gifMode = Object.assign({ bg: true, track: true, playlist: true }, v.gifMode || {})
   const gifBg = document.getElementById('toggle-gif-bg')
   const gifTrack = document.getElementById('toggle-gif-track')
@@ -2333,6 +2409,7 @@ function initVisualSettings() {
   try {
     refreshCustomizationPanel()
   } catch (_) {}
+  void syncWindowMaximizedBodyClass()
 }
 
 let _flowSidebarLayoutClickInstalled = false
@@ -2438,6 +2515,130 @@ function applySidebarPosition(position) {
   })
   syncLayoutDockMount()
   syncNexoryDeskClass()
+  try {
+    applySidebarIconRail()
+  } catch (_) {}
+}
+
+const FLOW_SIDEBAR_W_BEFORE_ICON_RAIL_LS = 'flow_sidebar_w_before_icon_rail'
+const SIDEBAR_ICON_RAIL_W = 72
+
+function restoreSidebarWidthAfterIconRail() {
+  const root = document.documentElement
+  const sidebar = document.getElementById('sidebar')
+  try {
+    root.style.removeProperty('--sidebar-panel-height')
+  } catch (_) {}
+  let w = 210
+  try {
+    const backup = localStorage.getItem(FLOW_SIDEBAR_W_BEFORE_ICON_RAIL_LS)
+    if (backup) {
+      const n = parseInt(backup, 10)
+      if (Number.isFinite(n)) w = Math.max(72, Math.min(320, n))
+      localStorage.removeItem(FLOW_SIDEBAR_W_BEFORE_ICON_RAIL_LS)
+    } else {
+      const cur = parseInt(localStorage.getItem('flow_sidebar_w') || '', 10)
+      if (Number.isFinite(cur) && cur > SIDEBAR_ICON_RAIL_W) w = cur
+    }
+  } catch (_) {}
+  root.style.setProperty('--sidebar-w', `${w}px`)
+  try {
+    localStorage.setItem('flow_sidebar_w', String(w))
+  } catch (_) {}
+  if (sidebar) sidebar.classList.toggle('collapsed', w <= 92)
+}
+
+function normalizeSidebarIconRailPosition(value) {
+  const raw = String(value ?? '')
+    .trim()
+    .toLowerCase()
+  return raw === 'right' || raw === 'top' ? raw : 'left'
+}
+
+function syncSidebarIconRailPositionUi(pos) {
+  const safe = normalizeSidebarIconRailPosition(pos)
+  ;['left', 'top', 'right'].forEach((id) => {
+    const el = document.getElementById(`icon-rail-dock-${id}`)
+    if (el) el.classList.toggle('active', id === safe)
+  })
+  const row = document.getElementById('vs-icon-rail-position-row')
+  if (row) row.style.display = document.body.classList.contains('sidebar-icon-rail') ? '' : 'none'
+}
+
+function applySidebarIconRailDockPosition(position) {
+  const safe = normalizeSidebarIconRailPosition(position ?? getVisual().sidebarIconRailPosition)
+  document.body.classList.remove('icon-rail-dock-left', 'icon-rail-dock-right', 'icon-rail-dock-top')
+  if (document.body.classList.contains('sidebar-icon-rail')) {
+    document.body.classList.add(`icon-rail-dock-${safe}`)
+  }
+  syncSidebarIconRailPositionUi(safe)
+}
+
+function setSidebarIconRailPosition(position) {
+  const safe = normalizeSidebarIconRailPosition(position)
+  saveVisual({ sidebarIconRailPosition: safe })
+  applySidebarIconRailDockPosition(safe)
+  const msg =
+    safe === 'top' ? 'Иконки сверху' : safe === 'right' ? 'Иконки справа' : 'Иконки слева'
+  showToast(msg)
+}
+
+/** Узкая колонка только с иконками (без смены темы UI). */
+function applySidebarIconRail() {
+  const v = getVisual()
+  const saved = Boolean(v.sidebarIconRail)
+  const canApply = saved
+  document.body.classList.toggle('sidebar-icon-rail', canApply)
+  const toggle = document.getElementById('toggle-sidebar-icon-rail')
+  if (toggle) toggle.classList.toggle('active', saved)
+
+  const sidebar = document.getElementById('sidebar')
+  const root = document.documentElement
+
+  if (!canApply) {
+    document.body.classList.remove('icon-rail-dock-left', 'icon-rail-dock-right', 'icon-rail-dock-top')
+    syncSidebarIconRailPositionUi(v.sidebarIconRailPosition)
+    if (!saved) restoreSidebarWidthAfterIconRail()
+    try {
+      scheduleMainShiftRemeasure()
+    } catch (_) {}
+    try {
+      syncFlowLayoutCoords()
+    } catch (_) {}
+    return
+  }
+
+  applySidebarIconRailDockPosition(v.sidebarIconRailPosition)
+
+  try {
+    if (!localStorage.getItem(FLOW_SIDEBAR_W_BEFORE_ICON_RAIL_LS)) {
+      const cur = parseInt(localStorage.getItem('flow_sidebar_w') || '', 10)
+      const w = Number.isFinite(cur) ? cur : 210
+      if (w > SIDEBAR_ICON_RAIL_W) {
+        localStorage.setItem(FLOW_SIDEBAR_W_BEFORE_ICON_RAIL_LS, String(w))
+      }
+    }
+  } catch (_) {}
+
+  root.style.setProperty('--sidebar-w', `${SIDEBAR_ICON_RAIL_W}px`)
+  try {
+    localStorage.setItem('flow_sidebar_w', String(SIDEBAR_ICON_RAIL_W))
+  } catch (_) {}
+  if (sidebar) sidebar.classList.add('collapsed')
+  try {
+    scheduleMainShiftRemeasure()
+  } catch (_) {}
+  try {
+    syncFlowLayoutCoords()
+  } catch (_) {}
+}
+
+function toggleSidebarIconRail() {
+  const v = getVisual()
+  const next = !Boolean(v.sidebarIconRail)
+  saveVisual({ sidebarIconRail: next })
+  applySidebarIconRail()
+  showToast(next ? 'Меню: только иконки' : 'Меню: обычная панель')
 }
 
 function setSidebarPosition(position) {
@@ -2790,27 +2991,15 @@ function custPreviewEffectiveCoverUrl() {
 }
 
 function customizationCoverMetaText() {
-  if (!currentTrack) return 'Включи трек — здесь появится обложка из источника или своя.'
-  const map = getCustomCoverMap()
-  if (getGlobalCustomCover(map)) return 'Источник: своя картинка для плеера (глобально).'
-  const keys = getTrackCoverKeys(currentTrack)
-  const per = keys.map((k) => map[k]).find(Boolean)
-  if (per) return 'Источник: своя обложка, привязанная к этому треку.'
-  return 'Источник: обложка из сервиса / локального файла.'
+  return ''
 }
 
 function customizationBgMetaText() {
-  const v = getVisual()
-  if (v.bgType === 'custom' && v.customBg) return 'Источник: свой фон (файл из галереи или загрузки).'
-  if (v.bgType === 'cover') return 'Источник: размытая обложка текущего трека.'
-  return 'Источник: градиент и орбы (без своего файла).'
+  return ''
 }
 
 function customizationVizMetaText() {
-  const hw = Object.assign({ enabled: true, mode: 'bars', image: null, intensity: 100, smoothing: 72 }, getVisual().homeWidget || {})
-  const names = { bars: 'столбцы', wave: 'волна', dots: 'точки', image: 'своё фото', web: 'Web' }
-  if (hw.mode === 'image' && hw.image) return 'Источник: своё изображение в виджете на главной.'
-  return `Источник: анимация «${names[hw.mode] || hw.mode}».`
+  return ''
 }
 
 function galleryRoleMatchesUrl(role, fileUrl) {
@@ -3620,7 +3809,7 @@ function syncPlayerModeUI() {
 
   if (t) {
     pmTitle.textContent  = t.title || 'РќРµРёР·РІРµСЃС‚РЅРѕ'
-    pmArtist.textContent = t.artist || 'вЂ”'
+    pmArtist.textContent = sanitizeDisplayText(t.artist || '—')
     const pmSrc = document.getElementById('pm-source-badge')
     if (pmSrc && typeof window.flowTrackSourceBadgeHtml === 'function') {
       const html = window.flowTrackSourceBadgeHtml(t)
@@ -3811,6 +4000,13 @@ function hasCommonMojibakeToken(value) {
   return COMMON_MOJIBAKE_FIXES.some(([bad]) => src.includes(bad))
 }
 
+function formatTrackLine(title, artist) {
+  const t = sanitizeDisplayText(title || 'Без названия')
+  const a = sanitizeDisplayText(artist || '')
+  return a ? `${t} — ${a}` : t
+}
+window.formatTrackLine = formatTrackLine
+
 function sanitizeDisplayText(value) {
   if (typeof value !== 'string') return value
   const fixed = applyCommonMojibakeFixes(decodeMojibakeCandidate(value))
@@ -3979,20 +4175,20 @@ function getSettings() {
     discordClientId: '', discordRpcEnabled: false, lastfmApiKey: '', lastfmSharedSecret: '', lastfmSessionKey: '',
     proxyBaseUrl: FLOW_SERVER_DEFAULT_URL,
     compactUi: false,
-    mediaShowQueue: true,
+    mediaShowQueue: false,
     mediaMetaAlign: 'left',
-    mediaPlayerBarMode: 'always',
+    mediaPlayerBarMode: 'hide-on-media',
     minimizeToTrayOnClose: true,
     launchAtLogin: false,
     flowSocialApiBase: FLOW_SOCIAL_DEFAULT_API_BASE,
     flowSocialApiSecret: FLOW_SOCIAL_DEFAULT_API_SECRET,
   }
   if (typeof raw.compactUi !== 'boolean') raw.compactUi = false
-  if (typeof raw.mediaShowQueue !== 'boolean') raw.mediaShowQueue = true
+  if (typeof raw.mediaShowQueue !== 'boolean') raw.mediaShowQueue = false
   const metaAlign = String(raw.mediaMetaAlign || 'left').trim().toLowerCase()
   raw.mediaMetaAlign = metaAlign === 'center' || metaAlign === 'right' ? metaAlign : 'left'
   const barMode = String(raw.mediaPlayerBarMode || 'always').trim().toLowerCase()
-  raw.mediaPlayerBarMode = barMode === 'hide-on-media' ? 'hide-on-media' : 'always'
+  raw.mediaPlayerBarMode = barMode === 'always' ? 'always' : 'hide-on-media'
   if (!Object.prototype.hasOwnProperty.call(raw, 'flowSocialApiBase')) raw.flowSocialApiBase = FLOW_SOCIAL_DEFAULT_API_BASE
   if (!Object.prototype.hasOwnProperty.call(raw, 'flowSocialApiSecret')) raw.flowSocialApiSecret = FLOW_SOCIAL_DEFAULT_API_SECRET
   if (!String(raw.flowSocialApiBase || '').trim()) raw.flowSocialApiBase = FLOW_SOCIAL_DEFAULT_API_BASE
@@ -4290,7 +4486,7 @@ window.openMediaSourceSettings = openMediaSourceSettings
 const HOME_NX_SRC_LOGOS = {
   vk: 'assets/source-vk.png',
   yandex: 'assets/source-yandex-music.png',
-  hybrid: 'assets/icon-source.png',
+  hybrid: 'assets/source-soundcloud.png',
 }
 
 let _homeNxPlaybackRamp = null
@@ -5032,36 +5228,36 @@ window.openAdvancedSourceSections = openAdvancedSourceSections
 
 function setAuthDrawerOpen(sourceKey) {
   const stack = document.getElementById('auth-source-stack')
-  if (!stack) return
+  const dock = document.getElementById('auth-source-token-dock')
+  const tiles = document.getElementById('auth-source-tiles')
+  if (!stack || !dock) return
   if (!sourceKey) {
-    stack.querySelectorAll('.auth-source-row.is-open').forEach((row) => row.classList.remove('is-open'))
-    stack.querySelectorAll('.auth-source-drawer').forEach((d) => d.setAttribute('aria-hidden', 'true'))
+    tiles?.querySelectorAll('.auth-source-tile.is-open').forEach((t) => t.classList.remove('is-open'))
+    dock.setAttribute('aria-hidden', 'true')
+    dock.querySelectorAll('.auth-source-drawer').forEach((d) => {
+      d.hidden = true
+    })
     return
   }
-  stack.querySelectorAll('.auth-source-row').forEach((row) => {
-    const on = row.getAttribute('data-auth-row') === sourceKey
-    row.classList.toggle('is-open', on)
-    const drawer = row.querySelector('.auth-source-drawer')
-    if (drawer) drawer.setAttribute('aria-hidden', on ? 'false' : 'true')
+  tiles?.querySelectorAll('.auth-source-tile').forEach((tile) => {
+    tile.classList.toggle('is-open', tile.getAttribute('data-auth-row') === sourceKey)
+  })
+  dock.setAttribute('aria-hidden', 'false')
+  dock.querySelectorAll('.auth-source-drawer').forEach((d) => {
+    const on = d.getAttribute('data-auth-drawer') === sourceKey
+    d.hidden = !on
   })
 }
 
 function onAuthSourceTileClick(evt, kind) {
   const k = String(kind || '')
-  if (k === 'spotify') {
-    evt?.preventDefault?.()
-    const row = document.querySelector(`.auth-source-row[data-auth-row="spotify"]`)
-    const nextOpen = !row?.classList.contains('is-open')
-    setAuthDrawerOpen(nextOpen ? 'spotify' : null)
-    return
-  }
+  const tile = document.querySelector(`.auth-source-tile[data-auth-row="${k}"]`)
+  const nextOpen = !tile?.classList.contains('is-open')
 
   if (k === 'hybrid') setActiveSource('hybrid')
   if (k === 'yandex') setActiveSource('yandex')
   if (k === 'vk') setActiveSource('vk')
 
-  const row = document.querySelector(`.auth-source-row[data-auth-row="${k}"]`)
-  const nextOpen = !row?.classList.contains('is-open')
   setAuthDrawerOpen(nextOpen ? k : null)
 
   if (nextOpen && (k === 'yandex' || k === 'vk')) {
@@ -6273,11 +6469,12 @@ function convertDotifyPresetToFlowStorage(preset) {
 function updateSourceBadge() {
   const raw = normalizeStoredActiveSource(getSettings()?.activeSource || currentSource || 'hybrid')
   currentSource = raw
-  let txt = 'Spotify → SoundCloud → Audius'
+  let txt = 'SoundCloud'
   if (raw === 'yandex') txt = 'Яндекс Музыка'
   else if (raw === 'vk') txt = 'ВКонтакте'
   else if (raw === 'spotify') txt = 'Spotify'
   else if (raw === 'soundcloud') txt = 'SoundCloud'
+  else if (raw === 'hybrid') txt = 'SoundCloud'
   else if (raw === 'audius') txt = 'Audius'
   const b1 = document.getElementById('source-badge'); if (b1) b1.textContent = txt
   const b2 = document.getElementById('source-badge-search'); if (b2) b2.textContent = txt
@@ -6319,7 +6516,7 @@ function getSearchSourceLabelBySrc(src) {
   if (s === 'yandex') return 'Яндекс Музыка'
   if (s === 'vk') return 'ВКонтакте'
   if (s === 'youtube' || s === 'yt') return 'YouTube'
-  return 'Classic'
+  return 'SoundCloud'
 }
 window.getSearchSourceLabelBySrc = getSearchSourceLabelBySrc
 
@@ -6332,12 +6529,13 @@ function switchSearchSource(src) {
         ? 'vk'
         : 'hybrid'
   setActiveSource(normalized)
+  try { syncHomeNxSourceLogo() } catch (_) {}
   const msg =
     normalized === 'yandex'
       ? 'Источник: Яндекс Музыка (нужен токен в Настройках → Источники)'
       : normalized === 'vk'
         ? 'Источник: ВКонтакте (токен Kate / OAuth в Настройках → Источники)'
-        : 'Источник: классический поиск (Spotify → SoundCloud → Audius)'
+        : 'Источник: SoundCloud'
   showToast(msg)
   try {
     if (typeof searchTracks === 'function' && String(document.getElementById('search-input')?.value || '').trim()) searchTracks()
@@ -7314,10 +7512,18 @@ function getMyWaveMode() {
 function getMyWaveSource() {
   try {
     const raw = String(localStorage.getItem('flow_my_wave_source') || 'yandex').trim().toLowerCase()
-    return raw === 'vk' ? 'vk' : 'yandex'
+    if (raw === 'vk') return 'vk'
+    return 'yandex'
   } catch {
     return 'yandex'
   }
+}
+
+function ensureYandexMyWaveSourceForMood() {
+  const tok = String(getSettings()?.yandexToken || '').trim()
+  if (!tok) return false
+  if (getMyWaveSource() !== 'yandex') setMyWaveSource('yandex')
+  return true
 }
 
 let _yandexRotorTrackStartedForId = null
@@ -7562,15 +7768,67 @@ function setMyWaveSource(source) {
   syncYandexWaveSettingsLabel()
 }
 
-function setMyWaveMode(mode) {
-  if (getMyWaveSource() !== 'yandex') return
-  _myWaveMode = WE?.MY_WAVE_MODES?.[mode] ? mode : 'default'
-  try { localStorage.setItem('flow_my_wave_mode', _myWaveMode) } catch {}
+async function refreshMyWaveForMood() {
+  if (!ensureYandexMyWaveSourceForMood()) {
+    return showToast('Для настроения волны нужен токен Яндекса в настройках', true)
+  }
+  const tok = String(getSettings()?.yandexToken || '').trim()
+  if (_myWaveBuilding) return
+  _myWaveBuilding = true
   renderMyWave()
+  const label = sanitizeDisplayText(WE?.MY_WAVE_MODES?.[getMyWaveMode()]?.label || 'настроение')
+  showToast(`Волна: ${label}`)
+  try {
+    _yandexWaveRotorQueueHint = ''
+    _yandexRotorTrackStartedForId = null
+    _myWaveSeenKeys = new Set()
+    queue = []
+    queueIndex = 0
+    const tracks = await findMyWaveRecommendations(5, getMyWaveMode(), { resetSession: true })
+    const unique = []
+    ;(tracks || []).forEach((track) => {
+      const key = getMyWaveTrackUniqueKey(track)
+      if (!key || _myWaveSeenKeys.has(key)) return
+      _myWaveSeenKeys.add(key)
+      unique.push(track)
+    })
+    if (!unique.length) {
+      showToast('Волна пока не нашла новые треки. Попробуй другой режим или послушай еще музыку', true)
+      return
+    }
+    _myWaveRenderedTracks = unique.slice()
+    queue = unique.slice()
+    queueIndex = 0
+    queueScope = 'myWave'
+    rememberYandexWaveTracks(unique)
+    await playTrackObj(queue[0])
+  } catch (err) {
+    showToast(`Волна: ${sanitizeDisplayText(err?.message || err)}`, true)
+  } finally {
+    _myWaveBuilding = false
+    renderMyWave()
+  }
+}
+window.refreshMyWaveForMood = refreshMyWaveForMood
+
+function setMyWaveMode(mode) {
+  if (!ensureYandexMyWaveSourceForMood()) {
+    return showToast('Для настроения волны нужен токен Яндекса', true)
+  }
+  const next = WE?.MY_WAVE_MODES?.[mode] ? mode : 'default'
+  const changed = next !== _myWaveMode
+  _myWaveMode = next
+  try { localStorage.setItem('flow_my_wave_mode', _myWaveMode) } catch {}
+  try { _yandexWaveRotorQueueHint = '' } catch (_) {}
   renderYandexWaveModes()
   syncYandexWaveSettingsLabel()
   renderYandexWaveMoodDock()
   syncInlineTrackSourcePill(currentTrack)
+  if (changed || queueScope === 'myWave') {
+    void refreshMyWaveForMood()
+    return
+  }
+  renderMyWave()
 }
 
 function syncYandexWaveSettingsLabel() {
@@ -7865,6 +8123,7 @@ async function startMyWave() {
   if (_myWaveBuilding) return
   const seedTracks = getMyWaveSeedTracks()
   if (seedTracks.length < 3) return showToast('Послушай или лайкни еще несколько треков, чтобы волна поняла вкус', true)
+  if (String(getSettings()?.yandexToken || '').trim()) ensureYandexMyWaveSourceForMood()
   try { _yandexWaveRotorQueueHint = '' } catch (_) {}
   _yandexRotorTrackStartedForId = null
   _waveEngineApi = null
@@ -7874,7 +8133,8 @@ async function startMyWave() {
   try {
     const waveAsk = getMyWaveSource() === 'yandex' ? 5 : (WE?.MY_WAVE_MIN_TRACKS ?? 10)
     _myWaveSeenKeys = new Set(loadYandexWaveRecentIds())
-    const tracks = await findMyWaveRecommendations(waveAsk, getMyWaveMode())
+    const ymReset = getMyWaveSource() === 'yandex'
+    const tracks = await findMyWaveRecommendations(waveAsk, getMyWaveMode(), ymReset ? { resetSession: true } : undefined)
     const unique = []
     ;(tracks || []).forEach((track) => {
       const key = getMyWaveTrackUniqueKey(track)
@@ -7882,6 +8142,17 @@ async function startMyWave() {
       _myWaveSeenKeys.add(key)
       unique.push(track)
     })
+    if (!unique.length) {
+      _myWaveSeenKeys = new Set()
+      _yandexWaveRotorQueueHint = ''
+      const retry = await findMyWaveRecommendations(5, getMyWaveMode(), ymReset ? { resetSession: true } : undefined)
+      ;(retry || []).forEach((track) => {
+        const key = getMyWaveTrackUniqueKey(track)
+        if (!key || _myWaveSeenKeys.has(key)) return
+        _myWaveSeenKeys.add(key)
+        unique.push(track)
+      })
+    }
     if (!unique.length) return showToast('Волна пока не нашла новые треки. Попробуй другой режим или послушай еще музыку', true)
     _myWaveRenderedTracks = unique.slice()
     queue = unique.slice()
@@ -10482,7 +10753,8 @@ function startApp() {
       homeSliderStyle: 'line',
       homeWidget: { enabled: true, mode: 'bars', image: null },
       effects: { orbs: false, glow: true, dyncolor: false },
-      uiScale: 100
+      uiScale: 100,
+      sidebarPosition: 'left',
     })
     localStorage.setItem('flow_first_launch_done', '1')
   }
@@ -10549,7 +10821,7 @@ function applyUiTextOverrides() {
     if (t.includes('Blur') && t.includes('фона')) el.innerHTML = 'Blur фона <span class="vs-val" id="vs-blur-val">40px</span>'
     if (t.includes('Яркость') || t.includes('PЏ')) el.innerHTML = 'Яркость фона <span class="vs-val" id="vs-bright-val">50%</span>'
     if (t.includes('Прозрачн')) el.innerHTML = 'Прозрачность стекла <span class="vs-val" id="vs-glass-val">32%</span>'
-    if (t.includes('панел')) el.innerHTML = 'Blur панелей <span class="vs-val" id="vs-panel-blur-val">30px</span>'
+    if (t.includes('панел')) el.innerHTML = '<span class="vs-val" id="vs-panel-blur-val">30px</span>'
   })
 }
 
@@ -11804,7 +12076,8 @@ function setupMainPaneShift() {
     const player = document.getElementById('player-bar')
     if (!scr || scr.classList.contains('hidden') || !content) return
 
-    applyShiftPx(0)
+    const skipShiftResetFlash = document.body.classList.contains('sidebar-icon-rail')
+    if (!skipShiftResetFlash) applyShiftPx(0)
     requestAnimationFrame(() => {
       const vw = window.innerWidth
       const margin = 12
@@ -12914,6 +13187,7 @@ function openPage(id, opts = {}) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'))
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'))
   document.getElementById('page-'+id)?.classList.add('active')
+  document.querySelectorAll(`.nav-item[data-nav-page="${id}"]`).forEach((n) => n.classList.add('active'))
   const navItem = document.querySelector(`.sidebar-nav .nav-item[data-nav-page="${id}"]`)
   if (navItem) {
     navItem.classList.add('active')
@@ -13465,7 +13739,7 @@ async function playTrackObj(track, opts = {}) {
   updatePlayerLikeBtn()
   // РћР±РЅРѕРІР»СЏРµРј titlebar
   const tinfo = document.getElementById('titlebar-track-info')
-  if (tinfo) tinfo.textContent = track.title + (track.artist ? ' вЂ” ' + track.artist : '')
+  if (tinfo) tinfo.textContent = typeof formatTrackLine === 'function' ? formatTrackLine(track.title, track.artist) : `${track.title || 'Без названия'}`
   const deferHeavyPlaybackUi = () => {
     try {
       applyCoverArt(cover, effectiveCover, track.bg || 'linear-gradient(135deg,#7c3aed,#a855f7)')
@@ -13479,6 +13753,7 @@ async function playTrackObj(track, opts = {}) {
   } else {
     setTimeout(deferHeavyPlaybackUi, 16)
   }
+  try { maybeNavigateToMediaAfterWavePlay(track) } catch (_) {}
   // РЎРёРЅС…СЂРѕРЅРёР·РёСЂСѓРµРј fullscreen РїР»РµРµСЂ
   syncPlayerModeUI()
   syncTrackCoverStatus()
@@ -14029,11 +14304,13 @@ async function searchHybridTracks(q, settings) {
 }
 
 function searchLoadingPlaceholderLine(settings = getSettings()) {
-  const src = String(settings?.activeSource || currentSource || 'hybrid').toLowerCase()
+  const src = typeof getSearchActiveSource === 'function'
+    ? getSearchActiveSource(settings)
+    : String(settings?.activeSource || currentSource || 'hybrid').toLowerCase()
   if (src === 'yandex' || src === 'ya' || src === 'ym') return 'Поиск: Яндекс Музыка...'
   if (src === 'vk') return 'Поиск: ВКонтакте...'
   if (src === 'youtube' || src === 'yt') return 'Поиск: YouTube...'
-  return 'Поиск: Spotify → SoundCloud → Audius...'
+  return 'Поиск: SoundCloud...'
 }
 
 function searchTracks(queryOverride = '') {
@@ -14108,25 +14385,14 @@ async function fetchSearchResultsForFilter(q, settings = getSettings(), filter =
     return { mode: 'yandex', items }
   }
 
-  if (needTyped) {
-    const yandexToken = String(settings?.yandexToken || '').trim()
-    if ((src === 'hybrid' || src === 'vk') && yandexToken && window.api?.yandexSearch) {
-      const ymList = await withTimeout(window.api.yandexSearch(q, yandexToken, apiType), 24000, 'yandex search timeout').catch((e) => {
-        throw new Error(normalizeInvokeError(e) || 'таймаут поиска')
-      })
-      if (!Array.isArray(ymList)) throw new Error('Яндекс: некорректный ответ')
-      const items = apiType === 'lyrics'
-        ? ymList.map((t) => Object.assign({}, t, { entityType: 'track' }))
-        : ymList
-      return { mode: 'yandex', items }
-    }
+  if (needTyped && apiType !== 'all') {
     const filterLabel = apiType === 'playlist' ? 'плейлисты'
       : apiType === 'album' ? 'альбомы'
       : apiType === 'artist' ? 'артисты'
       : apiType === 'lyrics' ? 'текст песен' : 'этот тип'
     if (src === 'youtube' || src === 'yt') throw new Error(`YouTube: поиск «${filterLabel}» недоступен — только треки`)
     if (src === 'vk') throw new Error(`VK: поиск «${filterLabel}» недоступен — только треки`)
-    if (src === 'hybrid') throw new Error(`Classic: поиск «${filterLabel}» недоступен — выбери Яндекс в источнике поиска`)
+    if (src === 'hybrid') throw new Error(`SoundCloud: поиск «${filterLabel}» недоступен — выбери Яндекс в источнике поиска`)
     throw new Error(`Для этого источника поиск «${filterLabel}» недоступен`)
   }
 
@@ -14199,6 +14465,24 @@ function clearSearchInput() {
 }
 window.clearSearchInput = clearSearchInput
 
+let _waveMediaNavPending = false
+
+function maybeNavigateToMediaAfterWavePlay(track) {
+  if (!track || queueScope !== 'myWave') return
+  if (_activePageId === 'home') return
+  if (_waveMediaNavPending) return
+  _waveMediaNavPending = true
+  const go = () => {
+    _waveMediaNavPending = false
+    if (_activePageId === 'home') return
+    document.body.classList.add('wave-to-media-transition')
+    try { openPage('home') } catch (_) {}
+    window.setTimeout(() => document.body.classList.remove('wave-to-media-transition'), 480)
+  }
+  window.setTimeout(go, 320)
+}
+window.maybeNavigateToMediaAfterWavePlay = maybeNavigateToMediaAfterWavePlay
+
 function toggleSearchSourcePopover(ev) {
   try {
     ev?.preventDefault?.()
@@ -14210,6 +14494,7 @@ function toggleSearchSourcePopover(ev) {
   const wasHidden = pop.classList.contains('hidden')
   pop.classList.toggle('hidden')
   btn.setAttribute('aria-expanded', wasHidden ? 'true' : 'false')
+  document.body.classList.toggle('search-src-pop-open', wasHidden)
   if (wasHidden) syncHomeNxSourceLogo()
 }
 window.toggleSearchSourcePopover = toggleSearchSourcePopover
@@ -14220,6 +14505,7 @@ function pickSearchSource(src) {
   const btn = document.getElementById('search-src-btn')
   pop?.classList.add('hidden')
   btn?.setAttribute('aria-expanded', 'false')
+  document.body.classList.remove('search-src-pop-open')
   syncHomeNxSourceLogo(true)
 }
 window.pickSearchSource = pickSearchSource
@@ -14359,7 +14645,7 @@ function getSourceLabel() {
   if (_lastSearchMode === 'youtube') return 'YouTube'
   if (_lastSearchMode === 'yandex') return 'Яндекс Музыка'
   if (_lastSearchMode === 'vk') return 'ВКонтакте'
-  return 'Spotify → SoundCloud → Audius'
+  return 'SoundCloud'
 }
 
 async function searchAudius(q) {
@@ -14545,7 +14831,7 @@ function likeTrack(track) {
   let liked = getLiked()
   if (wasLiked) {
     liked = liked.filter((t) => !(t.id === track.id && t.source === track.source))
-    showToast('РЈР±СЂР°РЅРѕ РёР· Р»СЋР±РёРјС‹С…')
+    showToast('Убрано из любимых')
     try {
       const tok = String(getSettings()?.yandexToken || '').trim()
       if (String(track.source || '').toLowerCase() === 'yandex' && tok && window.api?.yandexTrackUnlike) {
@@ -14556,7 +14842,7 @@ function likeTrack(track) {
     } catch (_) {}
   } else {
     liked.push(track)
-    showToast('Р”РѕР±Р°РІР»РµРЅРѕ РІ Р»СЋР±РёРјС‹Рµ в™Ґ')
+    showToast('Добавлено в любимые')
     try {
       const tok = String(getSettings()?.yandexToken || '').trim()
       if (String(track.source || '').toLowerCase() === 'yandex' && tok && window.api?.yandexTrackLike) {
@@ -15660,7 +15946,7 @@ function makeTrackEl(track, showPlaylist=false, bindDefaultPlay=true) {
     </div>
     <div class="track-info">
       <span class="track-name">${track.title}</span>
-      <span class="track-artist">${track.artist||'вЂ”'} ${badge}</span>
+      <span class="track-artist">${escapeHtml(sanitizeDisplayText(track.artist || '—'))} ${badge}</span>
     </div>
     <button class="track-like ${liked?'liked':''}" data-track-json="${trackJson}" onclick="event.stopPropagation();likeTrack(${trackJson})">${liked ? HEART_FILLED : HEART_OUTLINE}</button>
     <button class="track-like" onclick="event.stopPropagation();findSimilarTracks(${trackJson})" title="Найти похожие">${ICON_SIMILAR}</button>

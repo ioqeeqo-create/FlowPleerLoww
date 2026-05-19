@@ -4,26 +4,26 @@
 
 ## Current release
 
-- **Version:** 2.7.24 (see `package.json` for the exact value on your checkout).
+- **Version:** 3.0.2 (see `package.json` for the exact value on your checkout).
 - **Windows:** run `npm run build:win` to produce `dist/Nexory-Setup.exe` (installer) and `dist/Nexory-Portable.exe` (portable).
 
 Publishing a GitHub Release with artifacts:
 
 - **electron-builder** (needs `GH_TOKEN` with `repo` scope): `npm run release:win`
 - **GitHub CLI** (after `npm run build:win`):  
-  `gh release create v2.7.24 --repo ioqeeqo-create/NexoryND dist/Nexory-Setup.exe dist/Nexory-Portable.exe --title "Nexory 2.7.24" --generate-notes`
+  `gh release create v3.0.0 --repo ioqeeqo-create/NexoryND dist/Nexory-Setup.exe dist/Nexory-Portable.exe dist/latest.yml dist/Nexory-Setup.exe.blockmap --title "Nexory v3.0.0" --notes-file RELEASE_NOTES.md`
 
 ## Key features
 
 - Full player with lyrics/karaoke, playlists, likes, and profile customization.
 - Room listening with host controls and shared queue; invite and member sync through cloud relay.
-- Multi-source music search (Yandex, VK, SoundCloud, Spotify where supported, local playback).
+- Multi-source music search (Yandex, VK, SoundCloud hybrid chain, Spotify where supported, local playback).
 - Built-in app updater (check/download/install).
-- Visual settings: background blur/brightness, glass opacity and panel blur (including the home “Up next” queue).
-- `.flowpreset` **export** stores the full `flow_*` snapshot; **import** only applies appearance: `flow_visual` fields `blur`, `bright`, `glass`, `panelBlur`, `bgType`, `customBg`, `gifMode`, `homeWidget` (e.g. Dotify visualizer image), plus `flow_track_covers` when present. Dotify **`.dotifypreset`** v2 uses `data.gifSettings[]` / `data.uiSettings` (older files use `data.gifs` / `data.ui`) — both are mapped on import.
-- Default UI font: bundled pixel font in `assets/fonts/minecraft.ttf` (with webfont fallbacks). Replace that file if you want another look.
+- Visual settings: background blur/brightness, glass opacity and panel blur.
+- `.flowpreset` **export** stores the full `flow_*` snapshot; **import** applies appearance and related visual keys.
+- Default UI font: bundled pixel font in `assets/fonts/minecraft.ttf` (with webfont fallbacks).
 
-## Social/Room status (2.6.x line)
+## Social/Room status
 
 - Server-side friend presence (online/offline) from social backend.
 - Explicit host transfer + server election fallback.

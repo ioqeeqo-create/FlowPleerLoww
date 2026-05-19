@@ -4192,13 +4192,14 @@ async function ymRotorPostFeedback(oauth, station, type, fields = {}, batchId = 
   return Boolean(okBody || (Number(r?.status) >= 200 && Number(r?.status) < 300 && !r?.body?.error))
 }
 
-ipcMain.handle('yandex-my-wave-fetch', async (e, { token, mode, queueTrackId, radioFrom }) => {
+ipcMain.handle('yandex-my-wave-fetch', async (e, { token, mode, queueTrackId, radioFrom, resetSession }) => {
   try {
     const oauth = ymOAuthFromRawToken(token)
     if (!oauth) return { ok: false, error: 'Пустой токен Яндекса' }
     const h = ymOAuthHeaders(oauth)
+    const moodEnergy = mapFlowWaveModeToYmMoodEnergy(mode)
     const settingsForm = new URLSearchParams()
-    settingsForm.set('moodEnergy', mapFlowWaveModeToYmMoodEnergy(mode))
+    settingsForm.set('moodEnergy', moodEnergy)
     settingsForm.set('diversity', 'default')
     settingsForm.set('language', 'any')
     settingsForm.set('type', 'rotor')
@@ -4206,16 +4207,18 @@ ipcMain.handle('yandex-my-wave-fetch', async (e, { token, mode, queueTrackId, ra
     try {
       await httpsPostFormJson('api.music.yandex.net', setPath, Object.fromEntries(settingsForm), h, 15000)
     } catch (_) {}
-    const q = String(queueTrackId || '').trim()
-    // radioStarted на каждой дозагрузке сбрасывает контекст волны и глушит moodEnergy — только при «чистом» старте.
-    if (!q) {
+    const q = resetSession ? '' : String(queueTrackId || '').trim()
+    const needFreshRadio = resetSession || !q
+    if (needFreshRadio) {
       const from = String(radioFrom || `flow-desktop-${Date.now()}`).slice(0, 120)
       try {
         await ymRotorPostFeedback(oauth, YM_MY_WAVE_STATION, 'radioStarted', { from }, '')
       } catch (_) {}
     }
 
-    let path = `/rotor/station/${encodeURIComponent(YM_MY_WAVE_STATION)}/tracks?settings2=true`
+    let path =
+      `/rotor/station/${encodeURIComponent(YM_MY_WAVE_STATION)}/tracks?settings2=true` +
+      `&moodEnergy=${encodeURIComponent(moodEnergy)}`
     if (q) path += `&queue=${encodeURIComponent(q)}`
     const tr = await httpsGetJson('api.music.yandex.net', path, h, 25000)
     if (tr?.body?.error) {
@@ -4223,7 +4226,7 @@ ipcMain.handle('yandex-my-wave-fetch', async (e, { token, mode, queueTrackId, ra
     }
     const parsed = parseYmRotorTracksBody(tr.body)
     if (!parsed.tracks.length) return { ok: false, error: 'Яндекс волна: пустой ответ' }
-    return { ok: true, ...parsed, moodEnergy: 'all' }
+    return { ok: true, ...parsed, moodEnergy: mapFlowWaveModeToYmMoodEnergy(mode) }
   } catch (err) {
     return { ok: false, error: String(err?.message || err) }
   }

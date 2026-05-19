@@ -6,7 +6,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
   <!-- bump ?v= when profile/CSS/JS layout changes so Electron reloads assets -->
-  <link rel="stylesheet" href="styles.css?v=20260516-media-fix283">
+  <link rel="stylesheet" href="styles.css?v=26aa32532737-mpc53vtx">
 </head>
 <body>
 
@@ -95,7 +95,7 @@
     </div>
     <div class="sidebar-nav-shell">
     <nav class="sidebar-nav">
-      <div class="nav-group nav-group-split">
+      <div class="nav-group nav-group-split nav-group-rail-top">
       <a class="nav-item active" data-nav-page="main" onclick="openPage('main')" href="#" title="Главная" aria-label="Главная">
         <svg class="nav-icon flow-ref-nav" data-lucide="house" viewBox="0 0 24 24"></svg><span class="nav-label">Главная</span>
       </a>
@@ -304,11 +304,11 @@
             <div class="home-nx-vol-row" id="home-nx-vol-row">
               <button type="button" class="home-nx-vol-aux home-nx-vol-dl" id="home-nx-download-btn" onclick="downloadCurrentTrack()" title="Скачать трек"><svg class="ui-icon home-nx-dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M5 21h14"/></svg></button>
               <div class="home-nx-menu-wrap home-nx-vol-src">
-                <button type="button" class="home-nx-vol-aux home-nx-source-btn" id="home-nx-source-btn" onclick="toggleHomeNxSourceMenu(event)" title="Источник" aria-expanded="false"><img class="home-nx-src-logo" id="home-nx-src-logo" src="assets/icon-source.png" alt=""></button>
+                <button type="button" class="home-nx-vol-aux home-nx-source-btn" id="home-nx-source-btn" onclick="toggleHomeNxSourceMenu(event)" title="Источник" aria-expanded="false"><img class="home-nx-src-logo" id="home-nx-src-logo" src="assets/source-soundcloud.png" alt=""></button>
                 <div class="home-nx-dropdown home-nx-dropdown--up hidden" id="home-nx-source-menu" role="menu">
                   <button type="button" class="home-nx-src-opt" data-src="vk" onclick="pickHomeNxSource('vk')"><img src="assets/source-vk.png" alt=""><span>ВКонтакте</span></button>
                   <button type="button" class="home-nx-src-opt" data-src="yandex" onclick="pickHomeNxSource('yandex')"><img src="assets/source-yandex-music.png" alt=""><span>Яндекс</span></button>
-                  <button type="button" class="home-nx-src-opt" data-src="hybrid" onclick="pickHomeNxSource('hybrid')"><img src="assets/icon-source.png" alt=""><span>Classic</span></button>
+                  <button type="button" class="home-nx-src-opt" data-src="hybrid" onclick="pickHomeNxSource('hybrid')"><img src="assets/source-soundcloud.png" alt=""><span>SoundCloud</span></button>
                 </div>
               </div>
               <svg class="ui-icon home-nx-vol-ico" data-lucide="volume-2" viewBox="0 0 24 24" aria-hidden="true"></svg>
@@ -342,10 +342,10 @@
             <button type="button" class="nx-search-clear hidden" id="search-clear-btn" onclick="clearSearchInput()" aria-label="Очистить"><svg class="ui-icon sm" data-lucide="x" viewBox="0 0 24 24"></svg></button>
           </div>
           <button type="button" class="nx-search-src-btn" id="search-src-btn" onclick="toggleSearchSourcePopover(event)" title="Источник" aria-expanded="false">
-            <img id="search-src-logo" class="nx-search-src-logo" src="assets/icon-source.png" alt="">
+            <img id="search-src-logo" class="nx-search-src-logo" src="assets/source-soundcloud.png" alt="">
           </button>
           <div class="nx-search-src-pop hidden" id="search-src-pop" role="menu">
-            <button type="button" class="nx-search-src-opt" data-src="hybrid" onclick="pickSearchSource('hybrid')"><img src="assets/icon-source.png" alt=""><span>Classic</span></button>
+            <button type="button" class="nx-search-src-opt" data-src="hybrid" onclick="pickSearchSource('hybrid')"><img src="assets/source-soundcloud.png" alt=""><span>SoundCloud</span></button>
             <button type="button" class="nx-search-src-opt" data-src="yandex" onclick="pickSearchSource('yandex')"><img src="assets/source-yandex-music.png" alt=""><span>Яндекс</span></button>
             <button type="button" class="nx-search-src-opt" data-src="vk" onclick="pickSearchSource('vk')"><img src="assets/source-vk.png" alt=""><span>ВКонтакте</span></button>
           </div>
@@ -467,34 +467,28 @@
     <div id="page-settings" class="page">
       <div class="content-header">
         <h2>Настройки</h2>
-        <p class="content-sub">Выбери раздел слева — настройки сгруппированы по смыслу.</p>
       </div>
 
-      <div class="settings-shell">
+      <div class="settings-shell settings-shell--topnav">
+        <div class="settings-unified-card glass-card">
         <nav class="settings-category-rail" aria-label="Разделы настроек">
           <button type="button" class="settings-cat" data-settings-cat="customization" onclick="switchSettingsCategory('customization')">
             <span class="settings-cat-title">Кастомизация</span>
-            <span class="settings-cat-hint">Фон, обложка, галерея</span>
           </button>
           <button type="button" class="settings-cat active" data-settings-cat="appearance" onclick="switchSettingsCategory('appearance')">
             <span class="settings-cat-title">Оформление</span>
-            <span class="settings-cat-hint">Тема, фон, цвета, шрифт</span>
           </button>
           <button type="button" class="settings-cat" data-settings-cat="playback" onclick="switchSettingsCategory('playback')">
             <span class="settings-cat-title">Плеер</span>
-            <span class="settings-cat-hint">Режимы и пресеты Nexory</span>
           </button>
           <button type="button" class="settings-cat" data-settings-cat="optimization" onclick="switchSettingsCategory('optimization')">
             <span class="settings-cat-title">Оптимизация</span>
-            <span class="settings-cat-hint">Слабый ПК, фон и панель</span>
           </button>
           <button type="button" class="settings-cat" data-settings-cat="accounts" onclick="switchSettingsCategory('accounts')">
             <span class="settings-cat-title">Аккаунты</span>
-            <span class="settings-cat-hint">Токены и источники</span>
           </button>
           <button type="button" class="settings-cat" data-settings-cat="services" onclick="switchSettingsCategory('services')">
             <span class="settings-cat-title">Сервисы</span>
-            <span class="settings-cat-hint">Discord, сервер, Last.fm</span>
           </button>
         </nav>
         <div class="settings-panels-wrap">
@@ -511,13 +505,8 @@
             <div class="vs-row">
               <label class="vs-label">Тема UI</label>
               <div class="vs-btn-group vs-theme-grid">
-                <button class="vsb vsb-theme" id="vm-minimal" onclick="setVisualMode('minimal')" title="Classic">
-                  <span class="vsb-theme-icon">F</span>
-                  <span class="vsb-theme-label">clasic</span>
-                </button>
-                <button class="vsb vsb-theme" id="vm-floated" onclick="setVisualMode('floated')" title="Nexory Custom">
-                  <span class="vsb-theme-icon">F⚙</span>
-                  <span class="vsb-theme-label">nexory custom</span>
+                <button class="vsb vsb-theme" id="vm-minimal" onclick="setVisualMode('minimal')" title="Nexory">
+                  <span class="vsb-theme-icon">N</span>
                 </button>
                 <button class="vsb vsb-theme" id="vm-liquid" onclick="setVisualMode('liquid')" title="Liquid Glass">
                   <span class="vsb-theme-icon">◈</span>
@@ -527,29 +516,25 @@
             <div class="vs-row">
               <label class="vs-label">Расположение меню</label>
               <div class="vs-btn-group vs-layout-grid vs-layout-grid--row" role="group" aria-label="Расположение меню">
-                <button type="button" class="vsb vs-layout-card" id="layout-left" data-flow-sidebar-layout="left" title="Меню слева">
+                <button type="button" class="vsb vs-layout-card active" id="layout-left" data-flow-sidebar-layout="left" title="Меню слева">
                   <span class="vs-layout-mini vs-layout-mini-left"><i></i><b></b></span>
                   <span class="vs-layout-label">Слева</span>
-                </button>
-                <button type="button" class="vsb vs-layout-card" id="layout-top" data-flow-sidebar-layout="top" title="Меню сверху">
-                  <span class="vs-layout-mini vs-layout-mini-top"><i></i><b></b></span>
-                  <span class="vs-layout-label">Сверху</span>
-                </button>
-                <button type="button" class="vsb vs-layout-card" id="layout-bottom" data-flow-sidebar-layout="bottom" title="Меню снизу">
-                  <span class="vs-layout-mini vs-layout-mini-bottom"><i></i><b></b></span>
-                  <span class="vs-layout-label">Снизу</span>
-                </button>
-                <button type="button" class="vsb vs-layout-card" id="layout-right" data-flow-sidebar-layout="right" title="Меню справа">
-                  <span class="vs-layout-mini vs-layout-mini-right"><i></i><b></b></span>
-                  <span class="vs-layout-label">Справа</span>
                 </button>
               </div>
             </div>
             <div class="vs-row">
-              <label class="vs-label">Плотность карточек</label>
+              <label class="vs-label">Боковое меню</label>
               <div class="vs-btn-group">
-                <button class="vsb" id="density-comfort" onclick="setCardDensity('comfort')">Комфортно</button>
-                <button class="vsb" id="density-compact" onclick="setCardDensity('compact')">Компактно</button>
+                <button type="button" class="vsb" id="toggle-sidebar-icon-rail" onclick="toggleSidebarIconRail()" title="Узкая колонка только с иконками">Только иконки</button>
+              </div>
+            </div>
+            <div class="vs-row" id="vs-icon-rail-position-row" style="display:none">
+              <label class="vs-label">Позиция иконок</label>
+              <div class="vs-btn-group vs-layout-grid vs-layout-grid--row" role="group" aria-label="Позиция колонки иконок">
+                <button type="button" class="vsb vs-layout-card" id="icon-rail-dock-top" data-flow-icon-rail-dock="top" title="Иконки сверху" onclick="setSidebarIconRailPosition('top')">
+                  <span class="vs-layout-mini vs-layout-mini-top"><i></i><b></b></span>
+                  <span class="vs-layout-label">Сверху</span>
+                </button>
               </div>
             </div>
             </div>
@@ -631,8 +616,8 @@
               <input type="range" min="0" max="40" value="32" step="0.25" class="vs-slider" id="vs-glass" oninput="applyVisualSettings()" title="0 — минимум прозрачности (плотнее), выше — прозрачнее">
             </div>
             <div class="vs-row">
-              <label class="vs-label">Blur панелей <span class="vs-val" id="vs-panel-blur-val">30px</span></label>
-              <input type="range" min="0" max="60" value="30" class="vs-slider" id="vs-panel-blur" oninput="applyVisualSettings()">
+              <label class="vs-label vs-label--slider-only"><span class="vs-val" id="vs-panel-blur-val">30px</span></label>
+              <input type="range" min="0" max="60" value="30" class="vs-slider" id="vs-panel-blur" oninput="applyVisualSettings()" aria-label="Размытие панелей">
             </div>
             </div>
           </div>
@@ -807,7 +792,6 @@
 
       <div id="settings-panel-customization" class="settings-category-panel">
         <div class="cust-shell glass-card">
-          <p class="cust-lead">Здесь видно, откуда берутся обложка, фон и картинка виджета. В галерее наведи на плитку — сверху появятся кнопки: обложка, фон, виджет.</p>
           <div class="cust-preview-row">
             <div class="cust-preview-block">
               <div class="cust-preview-label">Обложка плеера</div>
@@ -866,23 +850,12 @@
         <div class="visual-settings">
           <div class="vs-section glass-card">
             <div class="vs-section-title">Плеер</div>
-            <div class="vs-row">
-              <label class="vs-label">Очередь в разделе «Медиа»</label>
-              <div class="vs-toggle active" id="toggle-media-show-queue" onclick="toggleMediaShowQueue()" title="Показывать список «Дальше в очереди» на странице медиа"><div class="vs-toggle-thumb"></div></div>
-            </div>
             <div class="vs-row vs-row--stack">
               <label class="vs-label">Расположение названия в медиа</label>
               <div class="vs-btn-group vs-media-preview-grid" role="group" aria-label="Расположение текста в медиа">
                 <button type="button" class="vsb vs-media-layout-card" id="media-meta-align-center" onclick="setMediaMetaAlign('center')"><span class="vs-media-preview vs-media-preview--meta-center" aria-hidden="true"></span><span class="vs-media-layout-name">По центру</span></button>
                 <button type="button" class="vsb vs-media-layout-card" id="media-meta-align-left" onclick="setMediaMetaAlign('left')"><span class="vs-media-preview vs-media-preview--meta-left" aria-hidden="true"></span><span class="vs-media-layout-name">Слева</span></button>
                 <button type="button" class="vsb vs-media-layout-card" id="media-meta-align-right" onclick="setMediaMetaAlign('right')"><span class="vs-media-preview vs-media-preview--meta-right" aria-hidden="true"></span><span class="vs-media-layout-name">Справа</span></button>
-              </div>
-            </div>
-            <div class="vs-row vs-row--stack">
-              <label class="vs-label">Нижняя панель плеера</label>
-              <div class="vs-btn-group vs-media-preview-grid vs-media-preview-grid--2" role="group" aria-label="Нижняя панель">
-                <button type="button" class="vsb vs-media-layout-card" id="media-player-bar-always" onclick="setMediaPlayerBarMode('always')"><span class="vs-media-preview vs-media-preview--bar-always" aria-hidden="true"></span><span class="vs-media-layout-name">Всегда</span></button>
-                <button type="button" class="vsb vs-media-layout-card" id="media-player-bar-hide" onclick="setMediaPlayerBarMode('hide-on-media')"><span class="vs-media-preview vs-media-preview--bar-hide" aria-hidden="true"></span><span class="vs-media-layout-name">Скрывать в медиа</span></button>
               </div>
             </div>
             <div class="vs-row">
@@ -967,14 +940,6 @@
                 <button class="vsb" id="sound-profile-bright" onclick="setSoundEnhancerProfile('bright')">Яркий</button>
               </div>
             </div>
-            <div class="vs-row">
-              <label class="vs-label">Плеер в fullscreen ниже/выше <span class="vs-val" id="pm-stage-offset-val">0px</span></label>
-              <input type="range" id="pm-stage-offset" min="-120" max="120" step="1" value="0" onchange="setPlayerModeOffsets()" oninput="setPlayerModeOffsets()">
-            </div>
-            <div class="vs-row">
-              <label class="vs-label">Текст в fullscreen ниже/выше <span class="vs-val" id="pm-lyrics-offset-val">-60px</span></label>
-              <input type="range" id="pm-lyrics-offset" min="-140" max="120" step="1" value="-60" onchange="setPlayerModeOffsets()" oninput="setPlayerModeOffsets()">
-            </div>
           </div>
 
         </div>
@@ -982,10 +947,8 @@
 
       <div id="settings-panel-optimization" class="settings-category-panel">
         <div class="visual-settings optimization-settings">
-          <p class="opt-section-lead">Настройки производительности для слабых ПК.</p>
           <div class="glass-card opt-settings-card">
             <div class="opt-setting-row">
-              <span class="opt-setting-icon opt-ico-spin" aria-hidden="true"><svg class="ui-icon lg" data-lucide="sun" viewBox="0 0 24 24"></svg></span>
               <div class="opt-setting-text">
                 <div class="opt-setting-title">Отключить анимации</div>
                 <p class="opt-setting-desc">Отключает плавные переходы и эффекты для ускорения работы.</p>
@@ -993,7 +956,6 @@
               <div class="vs-toggle" id="toggle-opt-animations" onclick="toggleOptimizationSetting('optDisableAnimations')"><div class="vs-toggle-thumb"></div></div>
             </div>
             <div class="opt-setting-row">
-              <span class="opt-setting-icon opt-ico-chip" aria-hidden="true"><svg class="ui-icon lg" data-lucide="cpu" viewBox="0 0 24 24"></svg></span>
               <div class="opt-setting-text">
                 <div class="opt-setting-title">Упрощённая графика</div>
                 <p class="opt-setting-desc">Отключает сложные эффекты вроде размытия для стабильной работы на старых видеокартах.</p>
@@ -1001,7 +963,6 @@
               <div class="vs-toggle" id="toggle-opt-simple-gfx" onclick="toggleOptimizationSetting('optSimpleGraphics')"><div class="vs-toggle-thumb"></div></div>
             </div>
             <div class="opt-setting-row">
-              <span class="opt-setting-icon opt-ico-snow" aria-hidden="true"><svg class="ui-icon lg" data-lucide="snowflake" viewBox="0 0 24 24"></svg></span>
               <div class="opt-setting-text">
                 <div class="opt-setting-title">Заморозка интерфейса</div>
                 <p class="opt-setting-desc">Останавливает тяжёлую отрисовку нижней панели при свёрнутом окне. Музыка продолжает играть.</p>
@@ -1009,7 +970,6 @@
               <div class="vs-toggle" id="toggle-opt-freeze-player" onclick="toggleOptimizationSetting('optFreezePlayerWhenMinimized')"><div class="vs-toggle-thumb"></div></div>
             </div>
             <div class="opt-setting-row">
-              <span class="opt-setting-icon opt-ico-moon" aria-hidden="true"><svg class="ui-icon lg" data-lucide="moon" viewBox="0 0 24 24"></svg></span>
               <div class="opt-setting-text">
                 <div class="opt-setting-title">Отключать видео-фоны в фоне</div>
                 <p class="opt-setting-desc">Выключает тяжёлые фоны и визуализатор, пока окно скрыто или свернуто.</p>
@@ -1017,7 +977,6 @@
               <div class="vs-toggle" id="toggle-opt-bg-when-away" onclick="toggleOptimizationSetting('optPauseHeavyBgWhenBackgrounded')"><div class="vs-toggle-thumb"></div></div>
             </div>
             <div class="opt-setting-row">
-              <span class="opt-setting-icon" aria-hidden="true"><svg class="ui-icon lg" data-lucide="headphones" viewBox="0 0 24 24"></svg></span>
               <div class="opt-setting-text">
                 <div class="opt-setting-title">Игровой режим</div>
                 <p class="opt-setting-desc">Пока окно не на экране (свернуто или ты в другой программе) — «sleep»: без текста и тяжёлой отрисовки, только звук. Вернёшься в Nexory — всё как обычно.</p>
@@ -1031,32 +990,34 @@
       <div id="settings-panel-accounts" class="settings-category-panel">
         <div class="glass-card" style="padding:18px;border-radius:18px;margin-top:8px;max-width:760px;">
           <div class="vs-section-title" style="margin-bottom:8px;">Источники</div>
-          <div style="color:var(--muted);font-size:14px;line-height:1.55;margin-bottom:14px;">Откуда брать результаты поиска: классический Nexory (сервер), Яндекс Музыка или ВКонтакте (нужен токен с аудио).</div>
           <div class="auth-token-guide-row">
             <button type="button" class="btn-small auth-token-guide-btn auth-token-guide-btn--half" onclick="openFlowYandexTelegraphGuide()" title="Открыть в браузере">Яндекс · Telegraph</button>
             <button type="button" class="btn-small auth-token-guide-btn auth-token-guide-btn--half" onclick="openFlowVkTelegraphGuide()" title="Telegraph: как подключить ВКонтакте в Nexory">VK · Telegraph</button>
           </div>
 
           <div class="auth-source-stack" id="auth-source-stack">
-            <div class="auth-source-row" data-auth-row="hybrid">
-              <button type="button" class="auth-source-tile auth-source-tile--flow source-mode-card" data-src="hybrid" onclick="onAuthSourceTileClick(event, 'hybrid')" title="Классический Nexory">
-                <span class="auth-source-tile-img-wrap"><img class="auth-source-tile-img" src="assets/auth/nexory.png" alt="Nexory" /></span>
-                <span class="source-mode-label">Nexory</span>
+            <div class="auth-source-tiles" id="auth-source-tiles">
+              <button type="button" class="auth-source-tile auth-source-tile--flow source-mode-card" data-auth-row="hybrid" data-src="hybrid" onclick="onAuthSourceTileClick(event, 'hybrid')" title="SoundCloud">
+                <span class="auth-source-tile-img-wrap"><img class="auth-source-tile-img" src="assets/source-soundcloud.png" alt="SoundCloud" /></span>
               </button>
-              <div class="auth-source-drawer" data-auth-drawer="hybrid" aria-hidden="true">
+              <button type="button" class="auth-source-tile auth-source-tile--yandex source-mode-card" data-auth-row="yandex" data-src="yandex" onclick="onAuthSourceTileClick(event, 'yandex')" title="Яндекс Музыка">
+                <span class="auth-source-tile-img-wrap"><img class="auth-source-tile-img" src="assets/source-yandex-music.png" alt="Яндекс Музыка" /></span>
+              </button>
+              <button type="button" class="auth-source-tile auth-source-tile--vk source-mode-card" data-auth-row="vk" data-src="vk" onclick="onAuthSourceTileClick(event, 'vk')" title="ВКонтакте">
+                <span class="auth-source-tile-img-wrap"><img class="auth-source-tile-img" src="assets/auth/vk.png" alt="VK" /></span>
+              </button>
+              <button type="button" class="auth-source-tile auth-source-tile--spotify source-mode-card" data-auth-row="spotify" data-src="spotify-dev" onclick="onAuthSourceTileClick(event, 'spotify')" title="Spotify">
+                <span class="auth-source-tile-img-wrap"><img class="auth-source-tile-img" src="assets/auth/spotify.png" alt="Spotify" /></span>
+              </button>
+            </div>
+            <div class="auth-source-token-dock" id="auth-source-token-dock" aria-hidden="true">
+              <div class="auth-source-drawer" data-auth-drawer="hybrid" hidden>
                 <div class="auth-source-drawer-inner">
                   <input class="token-field flow-input auth-readonly-line" readonly value="Работает" />
                   <div class="auth-source-hint">Серверный гибридный поиск и потоки без отдельного токена.</div>
                 </div>
               </div>
-            </div>
-
-            <div class="auth-source-row" data-auth-row="yandex">
-              <button type="button" class="auth-source-tile auth-source-tile--yandex source-mode-card" data-src="yandex" onclick="onAuthSourceTileClick(event, 'yandex')" title="Яндекс Музыка">
-                <span class="auth-source-tile-img-wrap"><img class="auth-source-tile-img" src="assets/source-yandex-music.png" alt="Яндекс Музыка" /></span>
-                <span class="source-mode-label">Яндекс</span>
-              </button>
-              <div class="auth-source-drawer" data-auth-drawer="yandex" aria-hidden="true">
+              <div class="auth-source-drawer" data-auth-drawer="yandex" hidden>
                 <div class="auth-source-drawer-inner">
                   <div class="token-field-wrap">
                     <input id="ym-token-val-compact" type="password" class="token-field" placeholder="Вставь access_token или полный redirect URL..." oninput="syncYmTokenFieldsFromCompact()">
@@ -1073,14 +1034,7 @@
                   <div id="ym-msg-compact" class="token-msg" style="display:block;margin-top:8px;" role="status" aria-live="polite"></div>
                 </div>
               </div>
-            </div>
-
-            <div class="auth-source-row" data-auth-row="vk">
-              <button type="button" class="auth-source-tile auth-source-tile--vk source-mode-card" data-src="vk" onclick="onAuthSourceTileClick(event, 'vk')" title="ВКонтакте">
-                <span class="auth-source-tile-img-wrap"><img class="auth-source-tile-img" src="assets/auth/vk.png" alt="VK" /></span>
-                <span class="source-mode-label">VK</span>
-              </button>
-              <div class="auth-source-drawer" data-auth-drawer="vk" aria-hidden="true">
+              <div class="auth-source-drawer" data-auth-drawer="vk" hidden>
                 <div class="auth-source-drawer-inner">
                   <div class="token-field-wrap">
                     <input id="vk-token-val-compact" type="password" class="token-field" placeholder="Вставь VK токен..." oninput="syncVkTokenFieldsFromCompact()">
@@ -1098,14 +1052,7 @@
                   <div id="vk-msg-compact" class="token-msg" style="display:block;margin-top:8px;" role="status" aria-live="polite"></div>
                 </div>
               </div>
-            </div>
-
-            <div class="auth-source-row" data-auth-row="spotify">
-              <button type="button" class="auth-source-tile auth-source-tile--spotify source-mode-card" data-src="spotify-dev" onclick="onAuthSourceTileClick(event, 'spotify')" title="Spotify">
-                <span class="auth-source-tile-img-wrap"><img class="auth-source-tile-img" src="assets/auth/spotify.png" alt="Spotify" /></span>
-                <span class="source-mode-label">Spotify</span>
-              </button>
-              <div class="auth-source-drawer" data-auth-drawer="spotify" aria-hidden="true">
+              <div class="auth-source-drawer" data-auth-drawer="spotify" hidden>
                 <div class="auth-source-drawer-inner">
                   <input class="token-field flow-input auth-readonly-line" readonly value="В разработке" />
                   <div class="auth-source-hint">Интеграция Spotify для этого блока пока не готова.</div>
@@ -1114,9 +1061,7 @@
             </div>
           </div>
 
-          <button type="button" class="btn-small auth-advanced-sources-btn" onclick="openAdvancedSourceSections()" style="margin:12px 0 14px;">Расширенные настройки (YouTube, Spotify Bearer, VK-логин…)</button>
-
-          <div class="vs-section glass-card vs-collapsible collapsed" data-settings-section="accountYoutube" style="margin:10px 0 16px;">
+          <div class="vs-section glass-card vs-collapsible collapsed settings-legacy-sources" data-settings-section="accountYoutube" style="margin:10px 0 16px;">
             <button type="button" class="vs-section-head" onclick="toggleSettingsSection('accountYoutube')" aria-expanded="false">
               <span class="vs-section-title">YouTube engine (yt-dlp)</span>
               <span class="vs-section-chevron">⌄</span>
@@ -1130,7 +1075,7 @@
             </div>
           </div>
 
-          <div class="vs-section glass-card vs-collapsible collapsed" data-settings-section="accountSpotify" style="margin:10px 0 16px;">
+          <div class="vs-section glass-card vs-collapsible collapsed settings-legacy-sources" data-settings-section="accountSpotify" style="margin:10px 0 16px;">
             <button type="button" class="vs-section-head" onclick="toggleSettingsSection('accountSpotify')" aria-expanded="false">
               <span class="vs-section-title">Spotify Bearer</span>
               <span class="vs-section-chevron">⌄</span>
@@ -1149,7 +1094,7 @@
             </div>
           </div>
 
-          <div class="vs-section glass-card vs-collapsible collapsed" data-settings-section="accountSoundcloud" style="margin:10px 0 16px;">
+          <div class="vs-section glass-card vs-collapsible collapsed settings-legacy-sources" data-settings-section="accountSoundcloud" style="margin:10px 0 16px;">
             <button type="button" class="vs-section-head" onclick="toggleSettingsSection('accountSoundcloud')" aria-expanded="false">
               <span class="vs-section-title">SoundCloud Client ID</span>
               <span class="vs-section-chevron">⌄</span>
@@ -1168,7 +1113,7 @@
             </div>
           </div>
 
-          <div class="vs-section glass-card vs-collapsible collapsed" data-settings-section="accountVk" style="margin:10px 0 16px;">
+          <div class="vs-section glass-card vs-collapsible collapsed settings-legacy-sources" data-settings-section="accountVk" style="margin:10px 0 16px;">
             <button type="button" class="vs-section-head" onclick="toggleSettingsSection('accountVk')" aria-expanded="false">
               <span class="vs-section-title">Авторизация VK</span>
               <span class="vs-section-chevron">⌄</span>
@@ -1218,7 +1163,7 @@
             </div>
           </div>
 
-          <div class="vs-section glass-card vs-collapsible collapsed" data-settings-section="accountYandex" style="margin:10px 0 16px;">
+          <div class="vs-section glass-card vs-collapsible collapsed settings-legacy-sources" data-settings-section="accountYandex" style="margin:10px 0 16px;">
             <button type="button" class="vs-section-head" onclick="toggleSettingsSection('accountYandex')" aria-expanded="false">
               <span class="vs-section-title">Яндекс Музыка импорт</span>
               <span class="vs-section-chevron">⌄</span>
@@ -1314,6 +1259,7 @@
       </div>
 
         </div><!-- .settings-panels-wrap -->
+        </div><!-- .settings-unified-card -->
       </div><!-- .settings-shell -->
     </div><!-- #page-settings -->
 
@@ -1346,10 +1292,7 @@
     <div class="player-bar-layout-dock" id="player-bar-layout-dock" role="group" aria-label="Расположение меню">
       <span class="player-bar-layout-dock-label">Меню</span>
       <div class="player-bar-layout-dock-btns">
-        <button type="button" class="pbl-dock-btn" data-flow-sidebar-layout="left" title="Меню слева" aria-label="Меню слева"><span class="pbl-dock-btn-stack"><span class="vs-layout-mini vs-layout-mini-left"><i></i><b></b></span><span class="pbl-dock-cap">Слева</span></span></button>
-        <button type="button" class="pbl-dock-btn" data-flow-sidebar-layout="top" title="Меню сверху" aria-label="Меню сверху"><span class="pbl-dock-btn-stack"><span class="vs-layout-mini vs-layout-mini-top"><i></i><b></b></span><span class="pbl-dock-cap">Сверху</span></span></button>
-        <button type="button" class="pbl-dock-btn" data-flow-sidebar-layout="bottom" title="Меню снизу" aria-label="Меню снизу"><span class="pbl-dock-btn-stack"><span class="vs-layout-mini vs-layout-mini-bottom"><i></i><b></b></span><span class="pbl-dock-cap">Снизу</span></span></button>
-        <button type="button" class="pbl-dock-btn" data-flow-sidebar-layout="right" title="Меню справа" aria-label="Меню справа"><span class="pbl-dock-btn-stack"><span class="vs-layout-mini vs-layout-mini-right"><i></i><b></b></span><span class="pbl-dock-cap">Справа</span></span></button>
+        <button type="button" class="pbl-dock-btn active" data-flow-sidebar-layout="left" title="Меню слева" aria-label="Меню слева"><span class="pbl-dock-btn-stack"><span class="vs-layout-mini vs-layout-mini-left"><i></i><b></b></span><span class="pbl-dock-cap">Слева</span></span></button>
       </div>
     </div>
     <div class="nover-bar-grid">
@@ -1404,7 +1347,6 @@
   <div class="pm-bg" id="pm-bg"></div>
   <button type="button" class="pm-close" onclick="exitPlayerMode()" aria-label="Назад" title="Назад">
     <svg class="ui-icon lg" data-lucide="arrow-left" viewBox="0 0 24 24"></svg>
-    <span class="pm-close-label">Назад</span>
   </button>
 
   <div class="pm-layout" id="pm-layout">
@@ -1710,7 +1652,7 @@
     <div class="flow-game-sleep-title">Sleep mode</div>
     <div class="flow-game-sleep-sub">Только воспроизведение · верни Nexory на экран</div>
   </div>
-  <script src="renderer.js?v=cf5d0a23ac65-mp9tfw8w"></script>
+  <script src="renderer.js?v=714512f9b2e6-mpc53vtx"></script>
 </body>
 </html>
 
