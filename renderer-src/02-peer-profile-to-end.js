@@ -178,11 +178,12 @@ function getMyWaveMode() {
 
 function getMyWaveSource() {
   try {
-    const raw = String(localStorage.getItem('flow_my_wave_source') || 'yandex').trim().toLowerCase()
+    const raw = String(localStorage.getItem('flow_my_wave_source') || 'soundcloud').trim().toLowerCase()
     if (raw === 'vk') return 'vk'
-    return 'yandex'
+    if (raw === 'yandex' || raw === 'ya' || raw === 'ym') return 'yandex'
+    return 'soundcloud'
   } catch {
-    return 'yandex'
+    return 'soundcloud'
   }
 }
 
@@ -388,6 +389,12 @@ function renderMyWaveSourceSlotInto(slotEl) {
   const modeButtons = Object.entries(WE?.MY_WAVE_MODES || {}).map(([id, cfg]) => (
     `<button type="button" class="my-wave-settings-mode-btn ${id === mode ? 'is-active' : ''}" onclick="setMyWaveMode('${escapeHtml(id)}')">${escapeHtml(sanitizeDisplayText(cfg?.label || id))}</button>`
   )).join('')
+  const sourceNote =
+    source === 'soundcloud'
+      ? 'Подбор по артистам и настроению — без ремиксов одного трека.'
+      : source === 'vk'
+        ? 'VK: похожие треки по запросам.'
+        : 'Яндекс Ротор: режимы настроения.'
   slotEl.innerHTML = `
     <div class="my-wave-settings-anchor">
       <button type="button" class="my-wave-settings-btn" onclick="toggleMyWaveSourceMenu(event)" title="Настройки волны" aria-haspopup="true" aria-expanded="false">
@@ -396,21 +403,24 @@ function renderMyWaveSourceSlotInto(slotEl) {
           <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1.9 1.9 0 1 1-2.7 2.7l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1.9 1.9 0 0 1-2.7-2.7l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1.9 1.9 0 1 1 2.7-2.7l.1.1a1 1 0 0 0 1.1.2h.1a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1.9 1.9 0 1 1 2.7 2.7l-.1.1a1 1 0 0 0-.2 1.1v.1a1 1 0 0 0 .9.6H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.6z"></path>
         </svg>
       </button>
-      <div class="my-wave-settings-dropdown" role="menu">
-        <div class="my-wave-settings-section-label">Источник волны</div>
-        <div class="my-wave-settings-source-row">
-          <button type="button" role="menuitem" class="my-wave-settings-source-btn ${source === 'yandex' ? 'is-active' : ''}" onclick="setMyWaveSource('yandex')">
-            ${myWaveSourceFabMarkHtml('yandex')} Яндекс
+      <div class="my-wave-settings-dropdown my-wave-settings-dropdown--rich" role="menu">
+        <div class="my-wave-settings-source-pills">
+          <button type="button" role="menuitem" class="my-wave-settings-source-pill ${source === 'soundcloud' ? 'is-active' : ''}" onclick="setMyWaveSource('soundcloud')" title="SoundCloud">
+            <img class="my-wave-src-logo" src="assets/source-soundcloud.png" alt="" width="22" height="22">
+            <span>SoundCloud</span>
           </button>
-          <button type="button" role="menuitem" class="my-wave-settings-source-btn ${source === 'vk' ? 'is-active' : ''}" onclick="setMyWaveSource('vk')">
-            ${myWaveSourceFabMarkHtml('vk')} VK
+          <button type="button" role="menuitem" class="my-wave-settings-source-pill ${source === 'yandex' ? 'is-active' : ''}" onclick="setMyWaveSource('yandex')" title="Яндекс Музыка">
+            <img class="my-wave-src-logo" src="assets/source-yandex-music.png" alt="" width="22" height="22">
+            <span>Яндекс</span>
+          </button>
+          <button type="button" role="menuitem" class="my-wave-settings-source-pill ${source === 'vk' ? 'is-active' : ''}" onclick="setMyWaveSource('vk')" title="ВКонтакте">
+            <img class="my-wave-src-logo" src="assets/source-vk.png" alt="" width="22" height="22">
+            <span>VK</span>
           </button>
         </div>
-        ${
-          source === 'yandex'
-            ? `<div class="my-wave-settings-section-label">Режим волны</div><div class="my-wave-settings-mode-grid">${modeButtons}</div>`
-            : '<div class="my-wave-settings-vk-note">Для VK доступен только выбор источника.</div>'
-        }
+        <div class="my-wave-settings-section-label">Режим волны</div>
+        <div class="my-wave-settings-mode-grid">${modeButtons}</div>
+        <div class="my-wave-settings-vk-note">${sourceNote}</div>
       </div>
     </div>
   `
@@ -421,7 +431,8 @@ window.closeMyWaveSourceMenus = closeMyWaveSourceMenus
 
 function setMyWaveSource(source) {
   closeMyWaveSourceMenus()
-  const next = String(source || '').trim().toLowerCase() === 'vk' ? 'vk' : 'yandex'
+  const raw = String(source || '').trim().toLowerCase()
+  const next = raw === 'vk' ? 'vk' : raw === 'yandex' || raw === 'ya' || raw === 'ym' ? 'yandex' : 'soundcloud'
   try { localStorage.setItem('flow_my_wave_source', next) } catch {}
   if (next === 'vk') {
     try { _yandexWaveRotorQueueHint = '' } catch (_) {}
@@ -640,7 +651,8 @@ function compactYandexMyWaveQueueIfNeeded() {
 }
 
 function mergeYandexWaveQueueAppend(freshTracks) {
-  const cur = sanitizeTrack(currentTrack || queue[queueIndex] || null)
+  const playIdx = Math.max(0, Math.min(queueIndex, Math.max(0, queue.length - 1)))
+  const cur = sanitizeTrack(currentTrack || queue[playIdx] || null)
   const incoming = (freshTracks || []).map(sanitizeTrack).filter((t) => t?.id)
   if (!cur?.id) {
     queue = incoming.slice(0, YANDEX_WAVE_QUEUE_BUFFER_MAX)
@@ -656,8 +668,8 @@ function mergeYandexWaveQueueAppend(freshTracks) {
     seen.add(key)
     append.push(track)
   })
-  const head = queue.slice(0, Math.max(0, queueIndex))
-  const tail = queue.slice(queueIndex + 1)
+  const head = queue.slice(0, playIdx)
+  const tail = queue.slice(playIdx + 1)
   const mergedTail = []
   const tailSeen = new Set([curKey])
   ;[...tail, ...append].forEach((track) => {
@@ -683,9 +695,9 @@ async function maybePreloadMyWave(force = false) {
     }
   }
   if (getMyWaveSeedTracks().length < 3) return
-  if (getMyWaveSource() === 'yandex') {
+  if (getMyWaveSource() === 'yandex' && !force) {
     const qHint = String(_yandexWaveRotorQueueHint || '').trim()
-    if (!qHint && !force) return
+    if (!qHint && remaining > 0) return
   }
   _myWavePreloading = true
   renderMyWave()
@@ -730,9 +742,12 @@ async function maybePreloadMyWave(force = false) {
       _myWaveRenderedTracks = queue.slice()
       renderQueue()
       showToast(getMyWaveSource() === 'yandex' ? 'Моя волна: подгружен следующий трек' : `Моя волна дозагрузила ${fresh.length} треков`)
-      if (force && queue.length > 1 && queue[1]) {
-        queueIndex = 1
-        await playTrackObj(queue[queueIndex])
+      if (force) {
+        const nextIdx = queueIndex + 1
+        if (nextIdx < queue.length) {
+          queueIndex = nextIdx
+          await playTrackObj(queue[queueIndex])
+        }
       }
     } else if (force && getMyWaveSource() !== 'yandex') {
       const recentKeys = new Set(
@@ -754,8 +769,9 @@ async function maybePreloadMyWave(force = false) {
         _myWaveRenderedTracks = queue.slice()
         renderQueue()
         showToast(`Моя волна продолжила подборку (${fallback.length})`)
-        if (queue.length > 1 && queue[1]) {
-          queueIndex = 1
+        const nextIdx = queueIndex + 1
+        if (force && nextIdx < queue.length) {
+          queueIndex = nextIdx
           await playTrackObj(queue[queueIndex])
         }
       }
@@ -788,16 +804,18 @@ function myWaveFineLinesLayerHtml() {
 
 async function startMyWave() {
   if (_myWaveBuilding) return
+  setMyWaveSource('soundcloud')
   const seedTracks = getMyWaveSeedTracks()
-  if (seedTracks.length < 3) return showToast('Послушай или лайкни еще несколько треков, чтобы волна поняла вкус', true)
-  if (String(getSettings()?.yandexToken || '').trim()) ensureYandexMyWaveSourceForMood()
+  if (seedTracks.length < 1) {
+    return showToast('Послушай или лайкни треки, чтобы волна поняла вкус', true)
+  }
   try { _yandexWaveRotorQueueHint = '' } catch (_) {}
   _yandexLastRotorPackKey = ''
   _yandexRotorTrackStartedForId = null
   _waveEngineApi = null
   _myWaveBuilding = true
   renderMyWave()
-  showToast('Моя волна подбирает новые треки...')
+  showToast('Моя волна на SoundCloud подбирает треки…')
   try {
     const waveAsk = getMyWaveSource() === 'yandex' ? 5 : (WE?.MY_WAVE_MIN_TRACKS ?? 10)
     const ymReset = getMyWaveSource() === 'yandex'
@@ -1787,6 +1805,7 @@ function ensureFriendInteractionUI() {
     menu.id = 'playlist-card-context-menu'
     menu.className = 'friend-context-menu hidden glass-card'
     menu.innerHTML = `
+      <button type="button" class="friend-context-item" onclick="playlistCardCtxWave()">Волна по плейлисту</button>
       <button type="button" class="friend-context-item" onclick="playlistCardCtxExportJson()">Экспорт JSON</button>
       <button type="button" class="friend-context-item" onclick="playlistCardCtxEdit()">Изменить</button>
       <button type="button" class="friend-context-item danger" onclick="playlistCardCtxDelete()">Удалить</button>
@@ -1828,6 +1847,134 @@ function playlistCardCtxDelete() {
   if (!Number.isFinite(i) || i < 0) return
   deletePlaylist(i)
 }
+
+async function playlistCardCtxWave() {
+  const i = Number(_playlistCardCtxIdx)
+  closePlaylistCardContextMenu()
+  if (!Number.isFinite(i) || i < 0) return
+  await startMyWaveFromPlaylist(i)
+}
+
+let _trackCardCtxTrack = null
+
+function ensureTrackCardContextMenu() {
+  if (document.getElementById('track-card-context-menu')) return
+  const menu = document.createElement('div')
+  menu.id = 'track-card-context-menu'
+  menu.className = 'friend-context-menu hidden glass-card'
+  menu.innerHTML = `
+    <button type="button" class="friend-context-item" onclick="trackCardCtxWave()">Волна по треку</button>
+    <button type="button" class="friend-context-item" onclick="trackCardCtxSimilar()">Похожие в поиске</button>
+  `
+  document.body.appendChild(menu)
+}
+
+function closeTrackCardContextMenu() {
+  document.getElementById('track-card-context-menu')?.classList.add('hidden')
+  _trackCardCtxTrack = null
+}
+
+function openTrackCardContextMenu(event, track) {
+  event?.preventDefault?.()
+  event?.stopPropagation?.()
+  ensureTrackCardContextMenu()
+  const menu = document.getElementById('track-card-context-menu')
+  if (!menu) return
+  _trackCardCtxTrack = sanitizeTrack(track)
+  menu.style.left = `${Math.max(8, Number(event?.clientX || 0))}px`
+  menu.style.top = `${Math.max(8, Number(event?.clientY || 0))}px`
+  menu.classList.remove('hidden')
+}
+
+async function trackCardCtxWave() {
+  const track = _trackCardCtxTrack
+  closeTrackCardContextMenu()
+  if (!track?.title) return showToast('Нет трека', true)
+  await startMyWaveFromTrack(track)
+}
+
+function trackCardCtxSimilar() {
+  const track = _trackCardCtxTrack
+  closeTrackCardContextMenu()
+  findSimilarTracks(track)
+}
+
+async function startMyWaveFromTrack(track) {
+  const seed = sanitizeTrack(track)
+  if (!seed?.title) return showToast('Нет трека', true)
+  setMyWaveSource('soundcloud')
+  if (_myWaveBuilding) return
+  _myWaveBuilding = true
+  renderMyWave()
+  showToast('Волна по треку: подбираю похожие на SoundCloud…')
+  try {
+    _myWaveSeenKeys = new Set()
+    const tracks = await findMyWaveRecommendations(12, getMyWaveMode(), {
+      resetSession: true,
+      seedTracks: [seed],
+      excludeTrack: seed,
+    })
+    const unique = (tracks || []).filter((t) => {
+      const key = getMyWaveTrackUniqueKey(t)
+      if (!key || _myWaveSeenKeys.has(key)) return false
+      _myWaveSeenKeys.add(key)
+      return true
+    })
+    if (!unique.length) return showToast('Не нашёл похожих треков', true)
+    _myWaveRenderedTracks = unique.slice()
+    queue = unique.slice()
+    queueIndex = 0
+    queueScope = 'myWave'
+    showToast(`Волна: ${unique.length} треков`)
+    await playTrackObj(queue[0])
+  } catch (err) {
+    showToast(`Волна: ${sanitizeDisplayText(err?.message || err)}`, true)
+  } finally {
+    _myWaveBuilding = false
+    renderMyWave()
+  }
+}
+
+async function startMyWaveFromPlaylist(playlistIndex) {
+  const pls = getPlaylists().map(normalizePlaylist)
+  const pl = pls[Number(playlistIndex)]
+  if (!pl) return showToast('Плейлист не найден', true)
+  const seeds = (pl.tracks || []).map(sanitizeTrack).filter((t) => t?.title).slice(0, 16)
+  if (!seeds.length) return showToast('Плейлист пуст', true)
+  setMyWaveSource('soundcloud')
+  if (_myWaveBuilding) return
+  _myWaveBuilding = true
+  renderMyWave()
+  showToast(`Волна по плейлисту «${pl.name || 'плейлист'}»…`)
+  try {
+    _myWaveSeenKeys = new Set()
+    const tracks = await findMyWaveRecommendations(14, getMyWaveMode(), {
+      resetSession: true,
+      seedTracks: seeds,
+    })
+    const unique = (tracks || []).filter((t) => {
+      const key = getMyWaveTrackUniqueKey(t)
+      if (!key || _myWaveSeenKeys.has(key)) return false
+      _myWaveSeenKeys.add(key)
+      return true
+    })
+    if (!unique.length) return showToast('Не нашёл треки для волны', true)
+    _myWaveRenderedTracks = unique.slice()
+    queue = unique.slice()
+    queueIndex = 0
+    queueScope = 'myWave'
+    showToast(`Волна: ${unique.length} треков`)
+    await playTrackObj(queue[0])
+  } catch (err) {
+    showToast(`Волна: ${sanitizeDisplayText(err?.message || err)}`, true)
+  } finally {
+    _myWaveBuilding = false
+    renderMyWave()
+  }
+}
+
+window.startMyWaveFromTrack = startMyWaveFromTrack
+window.startMyWaveFromPlaylist = startMyWaveFromPlaylist
 
 function exportPlaylistToJsonFile(playlistIndex) {
   const idx = Number(playlistIndex)
@@ -5161,7 +5308,8 @@ function animateFlowMediaText(el, text, mode = 'letter') {
         typeof escapeHtml === 'function'
           ? escapeHtml(ch)
           : ch.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      return `<span class="flow-text-char" style="--ft-delay:${delay}s">${esc}</span>`
+      const body = ch === ' ' ? '\u00a0' : esc
+      return `<span class="flow-text-char${ch === ' ' ? ' flow-text-char--space' : ''}" style="--ft-delay:${delay}s">${body}</span>`
     })
     .join('')
   requestAnimationFrame(() => el.classList.add('flow-text-animated'))
@@ -5925,15 +6073,16 @@ function drawHomeVisualizerFrame() {
     ctx.stroke()
     return
   }
-  const bars = 56
+  const bars = 96
   const step = Math.max(1, Math.floor(data.length / bars))
   const bw = (w - 20) / bars
+  const barW = Math.max(1, bw - 5)
   for (let i = 0; i < bars; i++) {
     const val = data[i * step] || 0
     const bh = 8 + (Math.min(255, val * intensityScale) / 255) * (h - 24)
-    const x = 10 + i * bw
+    const x = 10 + i * bw + (bw - barW) / 2
     const y = h - bh - 6
-    ctx.fillRect(x, y, Math.max(2, bw - 2), bh)
+    ctx.fillRect(x, y, barW, bh)
   }
 }
 
@@ -6638,9 +6787,7 @@ async function playTrackObj(track, opts = {}) {
   const pmIcon = document.getElementById('pm-play-icon')
   if (pmIcon) pmIcon.innerHTML = PM_PAUSE_INNER
   updatePlayerLikeBtn()
-  // РћР±РЅРѕРІР»СЏРµРј titlebar
-  const tinfo = document.getElementById('titlebar-track-info')
-  if (tinfo) tinfo.textContent = typeof formatTrackLine === 'function' ? formatTrackLine(track.title, track.artist) : `${track.title || 'Без названия'}`
+  /* titlebar: Nexory по центру, версия слева — без названия трека */
   const deferHeavyPlaybackUi = () => {
     try {
       applyCoverArt(cover, effectiveCover, track.bg || 'linear-gradient(135deg,#7c3aed,#a855f7)')
@@ -6904,12 +7051,14 @@ function setVolume(val) {
 function pickRandomQueueIndex() {
   if (!queue.length) return -1
   if (queue.length === 1) return 0
-  let idx = queueIndex
-  for (let i = 0; i < 8; i++) {
-    const candidate = Math.floor(Math.random() * queue.length)
-    if (candidate !== queueIndex) { idx = candidate; break }
+  let candidate = Math.floor(Math.random() * queue.length)
+  let tries = 0
+  while (candidate === queueIndex && tries < 32) {
+    candidate = Math.floor(Math.random() * queue.length)
+    tries++
   }
-  return idx
+  if (candidate === queueIndex) candidate = (queueIndex + 1) % queue.length
+  return candidate
 }
 
 function prevTrack() {
@@ -6987,8 +7136,17 @@ async function nextTrack(autoEnded = false) {
   }
   const allowShuffle = playbackMode.shuffle && (queueScope === 'liked' || queueScope === 'playlist')
   if (allowShuffle) {
+    const prevIdx = queueIndex
     queueIndex = pickRandomQueueIndex()
-    if (queueIndex >= 0) playTrackObj(queue[queueIndex])
+    if (queueIndex >= 0) {
+      if (autoEnded && queueIndex === prevIdx && queue[queueIndex]) {
+        audio.currentTime = 0
+        audio.play().catch(() => {})
+        syncTransportPlayPauseUi()
+        return
+      }
+      playTrackObj(queue[queueIndex])
+    }
     return
   }
   if (queueIndex < queue.length - 1) {
@@ -6999,6 +7157,11 @@ async function nextTrack(autoEnded = false) {
   }
   if (queueScope === 'myWave') {
     await maybePreloadMyWave(true)
+    if (queueIndex < queue.length - 1) {
+      queueIndex++
+      await playTrackObj(queue[queueIndex])
+      return
+    }
     showToast('Волна ищет продолжение...')
     return
   }
@@ -8043,8 +8206,11 @@ function createPlaylist(nameFromUi = '') {
 window.createPlaylist = createPlaylist
 
 function deletePlaylist(idx) {
-  if (!confirm('РЈРґР°Р»РёС‚СЊ РїР»РµР№Р»РёСЃС‚?')) return
-  const pls = getPlaylists(); pls.splice(idx,1); savePlaylists(pls); renderPlaylists()
+  const pls = getPlaylists()
+  pls.splice(idx, 1)
+  savePlaylists(pls)
+  renderPlaylists()
+  showToast('Плейлист удалён')
 }
 
 function getTrackDedupeKey(track = {}) {
@@ -8859,17 +9025,23 @@ function makeTrackEl(track, showPlaylist=false, bindDefaultPlay=true) {
       playTrackObj(track)
     })
   }
+  el.addEventListener('contextmenu', (ev) => openTrackCardContextMenu(ev, track))
   return el
 }
 
 function findSimilarTracks(track = null) {
   const t = sanitizeTrack(track || currentTrack || {})
-  const query = [t.artist, t.title].filter(Boolean).join(' ').trim()
+  const artist = String(t.artist || '').trim()
+  const title = String(t.title || '').trim()
+  const tokens = `${artist} ${title}`.toLowerCase().replace(/[^\p{L}\p{N}\s-]+/gu, ' ').split(/\s+/).filter((x) => x.length >= 3)
+  const genreHint = tokens.slice(0, 2).join(' ')
+  const query = [artist, genreHint ? `${genreHint} similar` : '', title ? `tracks like ${title}` : ''].filter(Boolean).join(' ').trim()
   if (!query) return showToast('Сначала выбери трек', true)
+  setActiveSource('hybrid')
   openPage('search')
   const input = document.getElementById('search-input')
   if (input) input.value = query
-  showToast('Ищу похожие треки')
+  showToast('Ищу похожие на SoundCloud')
   searchTracks()
 }
 
@@ -9404,7 +9576,23 @@ function setupAppDragAndDrop() {
 }
 
 // в”Ђв”Ђв”Ђ INIT + HOTKEYS в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+function bindPlayerModeNoPageScroll() {
+  const pmRoot = document.getElementById('player-mode')
+  if (!pmRoot || pmRoot.dataset.flowPmScrollBound === '1') return
+  pmRoot.dataset.flowPmScrollBound = '1'
+  pmRoot.addEventListener(
+    'wheel',
+    (e) => {
+      if (!_playerModeActive) return
+      if (e.target.closest('.pm-lyrics-content, #lyrics-content, .pm-lyrics-controls, .pm-lyrics-popover')) return
+      e.preventDefault()
+    },
+    { passive: false },
+  )
+}
+
 window.addEventListener('DOMContentLoaded', () => {
+  bindPlayerModeNoPageScroll()
   window.addEventListener(
     'beforeunload',
     () => {

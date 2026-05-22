@@ -6,7 +6,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
   <!-- bump ?v= when profile/CSS/JS layout changes so Electron reloads assets -->
-  <link rel="stylesheet" href="styles.css?v=2c78ab661974-mpd5l1al">
+  <link rel="stylesheet" href="styles.css?v=090ced0d355d-mphj4fqr">
 </head>
 <body>
 
@@ -34,8 +34,8 @@
 
 <!-- TITLEBAR -->
 <div class="titlebar">
-  <span class="titlebar-logo" id="titlebar-logo"><span class="titlebar-name">Nexory</span><span class="titlebar-ver" id="titlebar-version"></span></span>
-  <div class="titlebar-center" id="titlebar-track-info"></div>
+  <span class="titlebar-logo titlebar-logo--ver-only" id="titlebar-logo"><span class="titlebar-ver" id="titlebar-version"></span></span>
+  <div class="titlebar-center titlebar-center--brand" id="titlebar-track-info"><span class="titlebar-name">Nexory</span></div>
   <div class="titlebar-btns">
     <button type="button" onclick="window.api.minimize()" title="Свернуть" aria-label="Свернуть"><svg class="ui-icon" data-lucide="minus" viewBox="0 0 24 24"></svg></button>
     <button type="button" onclick="toggleWindowMaximize()" title="Развернуть" aria-label="Развернуть">
@@ -302,18 +302,24 @@
             </div>
             </div>
             <div class="home-nx-vol-row" id="home-nx-vol-row">
-              <button type="button" class="home-nx-vol-aux home-nx-vol-dl" id="home-nx-download-btn" onclick="downloadCurrentTrack()" title="Скачать трек"><svg class="ui-icon home-nx-dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M5 21h14"/></svg></button>
-              <div class="home-nx-menu-wrap home-nx-vol-src">
-                <button type="button" class="home-nx-vol-aux home-nx-source-btn" id="home-nx-source-btn" onclick="toggleHomeNxSourceMenu(event)" title="Источник" aria-expanded="false"><img class="home-nx-src-logo" id="home-nx-src-logo" src="assets/source-soundcloud.png" alt=""></button>
-                <div class="home-nx-dropdown home-nx-dropdown--up hidden" id="home-nx-source-menu" role="menu">
-                  <button type="button" class="home-nx-src-opt" data-src="vk" onclick="pickHomeNxSource('vk')"><img src="assets/source-vk.png" alt=""><span>ВКонтакте</span></button>
-                  <button type="button" class="home-nx-src-opt" data-src="yandex" onclick="pickHomeNxSource('yandex')"><img src="assets/source-yandex-music.png" alt=""><span>Яндекс</span></button>
-                  <button type="button" class="home-nx-src-opt" data-src="hybrid" onclick="pickHomeNxSource('hybrid')"><img src="assets/source-soundcloud.png" alt=""><span>SoundCloud</span></button>
-                </div>
+              <div class="home-nx-vol-side home-nx-vol-side--left">
+                <button type="button" class="home-nx-vol-aux home-nx-vol-dl" id="home-nx-download-btn" onclick="downloadCurrentTrack()" title="Скачать трек"><svg class="ui-icon home-nx-dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M5 21h14"/></svg></button>
               </div>
-              <svg class="ui-icon home-nx-vol-ico" data-lucide="volume-2" viewBox="0 0 24 24" aria-hidden="true"></svg>
-              <input type="range" class="home-nx-volume" id="home-nx-volume" min="0" max="1" step="0.01" value="0.8" oninput="setVolume(this.value)">
-              <span class="home-nx-vol-val" id="home-nx-vol-val">8</span>
+              <div class="home-nx-vol-center">
+                <svg class="ui-icon home-nx-vol-ico" data-lucide="volume-2" viewBox="0 0 24 24" aria-hidden="true"></svg>
+                <input type="range" class="home-nx-volume" id="home-nx-volume" min="0" max="1" step="0.01" value="0.8" oninput="setVolume(this.value)">
+              </div>
+              <div class="home-nx-vol-side home-nx-vol-side--right">
+                <div class="home-nx-menu-wrap home-nx-vol-src">
+                  <button type="button" class="home-nx-vol-aux home-nx-source-btn" id="home-nx-source-btn" onclick="toggleHomeNxSourceMenu(event)" title="Источник" aria-expanded="false"><img class="home-nx-src-logo" id="home-nx-src-logo" src="assets/source-soundcloud.png" alt=""></button>
+                  <div class="home-nx-dropdown home-nx-dropdown--up hidden" id="home-nx-source-menu" role="menu">
+                    <button type="button" class="home-nx-src-opt" data-src="vk" onclick="pickHomeNxSource('vk')"><img src="assets/source-vk.png" alt=""><span>ВКонтакте</span></button>
+                    <button type="button" class="home-nx-src-opt" data-src="yandex" onclick="pickHomeNxSource('yandex')"><img src="assets/source-yandex-music.png" alt=""><span>Яндекс</span></button>
+                    <button type="button" class="home-nx-src-opt" data-src="hybrid" onclick="pickHomeNxSource('hybrid')"><img src="assets/source-soundcloud.png" alt=""><span>SoundCloud</span></button>
+                  </div>
+                </div>
+                <span class="home-nx-vol-val" id="home-nx-vol-val">8</span>
+              </div>
             </div>
           </div>
         </div>
@@ -502,41 +508,6 @@
               <span class="vs-section-chevron">⌄</span>
             </button>
             <div class="vs-section-body">
-            <div class="vs-row">
-              <label class="vs-label">Тема UI</label>
-              <div class="vs-btn-group vs-theme-grid">
-                <button class="vsb vsb-theme" id="vm-minimal" onclick="setVisualMode('minimal')" title="Nexory">
-                  <span class="vsb-theme-icon">N</span>
-                </button>
-                <button class="vsb vsb-theme" id="vm-liquid" onclick="setVisualMode('liquid')" title="Liquid Glass">
-                  <span class="vsb-theme-icon">◈</span>
-                </button>
-              </div>
-            </div>
-            <div class="vs-row">
-              <label class="vs-label">Расположение меню</label>
-              <div class="vs-btn-group vs-layout-grid vs-layout-grid--row" role="group" aria-label="Расположение меню">
-                <button type="button" class="vsb vs-layout-card active" id="layout-left" data-flow-sidebar-layout="left" title="Меню слева">
-                  <span class="vs-layout-mini vs-layout-mini-left"><i></i><b></b></span>
-                  <span class="vs-layout-label">Слева</span>
-                </button>
-              </div>
-            </div>
-            <div class="vs-row">
-              <label class="vs-label">Боковое меню</label>
-              <div class="vs-btn-group">
-                <button type="button" class="vsb" id="toggle-sidebar-icon-rail" onclick="toggleSidebarIconRail()" title="Узкая колонка только с иконками">Только иконки</button>
-              </div>
-            </div>
-            <div class="vs-row" id="vs-icon-rail-position-row" style="display:none">
-              <label class="vs-label">Позиция иконок</label>
-              <div class="vs-btn-group vs-layout-grid vs-layout-grid--row" role="group" aria-label="Позиция колонки иконок">
-                <button type="button" class="vsb vs-layout-card" id="icon-rail-dock-top" data-flow-icon-rail-dock="top" title="Иконки сверху" onclick="setSidebarIconRailPosition('top')">
-                  <span class="vs-layout-mini vs-layout-mini-top"><i></i><b></b></span>
-                  <span class="vs-layout-label">Сверху</span>
-                </button>
-              </div>
-            </div>
             </div>
           </div>
 
@@ -602,22 +573,28 @@
               <span class="vs-section-title">Размытие и яркость</span>
               <span class="vs-section-chevron">⌄</span>
             </button>
-            <div class="vs-section-body">
-            <div class="vs-row">
+            <div class="vs-section-body vs-glass-tuning">
+            <div class="vs-row vs-row--slider">
               <label class="vs-label">Blur фона <span class="vs-val" id="vs-blur-val">40px</span></label>
               <input type="range" min="0" max="80" value="40" class="vs-slider" id="vs-blur" oninput="applyVisualSettings()">
             </div>
-            <div class="vs-row">
+            <div class="vs-row vs-row--slider">
               <label class="vs-label">Яркость фона <span class="vs-val" id="vs-bright-val">50%</span></label>
               <input type="range" min="10" max="100" value="50" class="vs-slider" id="vs-bright" oninput="applyVisualSettings()">
             </div>
-            <div class="vs-row">
-              <label class="vs-label">Прозрачность стекла <span class="vs-val" id="vs-glass-val">32%</span></label>
-              <input type="range" min="0" max="40" value="32" step="0.25" class="vs-slider" id="vs-glass" oninput="applyVisualSettings()" title="0 — минимум прозрачности (плотнее), выше — прозрачнее">
-            </div>
-            <div class="vs-row">
-              <label class="vs-label vs-label--slider-only"><span class="vs-val" id="vs-panel-blur-val">30px</span></label>
-              <input type="range" min="0" max="60" value="30" class="vs-slider" id="vs-panel-blur" oninput="applyVisualSettings()" aria-label="Размытие панелей">
+            <div class="vs-glass-tuning-grid">
+              <div class="vs-row vs-row--slider">
+                <label class="vs-label">Непрозрачность <span class="vs-val" id="vs-glass-opacity-val">64%</span></label>
+                <input type="range" min="0" max="100" value="64" step="1" class="vs-slider" id="vs-glass-opacity" oninput="applyVisualSettings()" title="Плотность стекла панелей">
+              </div>
+              <div class="vs-row vs-row--slider">
+                <label class="vs-label">Сила стекла <span class="vs-val" id="vs-glass-val">150%</span></label>
+                <input type="range" min="100" max="220" value="150" step="1" class="vs-slider" id="vs-glass-strength" oninput="applyVisualSettings()" title="Насыщенность стекла">
+              </div>
+              <div class="vs-row vs-row--slider">
+                <label class="vs-label">Размытие стекла <span class="vs-val" id="vs-panel-blur-val">46px</span></label>
+                <input type="range" min="0" max="60" value="46" class="vs-slider" id="vs-panel-blur" oninput="applyVisualSettings()">
+              </div>
             </div>
             </div>
           </div>
@@ -1656,7 +1633,7 @@
     <div class="flow-game-sleep-title">Sleep mode</div>
     <div class="flow-game-sleep-sub">Только воспроизведение · верни Nexory на экран</div>
   </div>
-  <script src="renderer.js?v=8f30a9c5aab1-mpd5l1al"></script>
+  <script src="renderer.js?v=8795d3423ef7-mphj4fqr"></script>
 </body>
 </html>
 

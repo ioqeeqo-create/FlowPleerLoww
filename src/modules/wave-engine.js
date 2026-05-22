@@ -377,9 +377,24 @@
       return set
     }
 
+    function isMyWaveJunkTrack(track) {
+      const title = String(track?.title || '').trim().toLowerCase()
+      const artist = String(track?.artist || '').trim().toLowerCase()
+      const combo = `${artist} ${title}`.trim()
+      if (!title || title.length < 2) return true
+      if (/^(song|track|audio|video|music|трек|песня)\s*#?\s*\d{1,4}$/i.test(title)) return true
+      if (/^(tik\s*tok|тик\s*ток|tt)\s*#?\s*\d*$/i.test(title)) return true
+      if (/^original\s*sound\s*#?\s*\d*$/i.test(title)) return true
+      if (/^(без\s*названия|unknown|untitled|audio\s*\d+)$/i.test(title)) return true
+      if (title.length <= 12 && /\b(tiktok|tik\s*tok|тикток|reels|shorts)\b/i.test(combo)) return true
+      if (!artist && title.length < 8 && /\d/.test(title)) return true
+      return false
+    }
+
     function isMyWaveRecommendationAllowed(track, excluded, selected) {
       const safe = sanitizeTrack(track)
       if (!safe?.id && !safe?.title) return false
+      if (isMyWaveJunkTrack(safe)) return false
       const sig = normalizeTrackSignature(safe)
       if (!sig || excluded.has(sig) || selected.has(sig)) return false
       const text = `${safe.artist || ''} ${safe.title || ''}`.toLowerCase()
@@ -439,16 +454,82 @@
       return Array.from(new Set(queries.map((q) => q.trim()).filter(Boolean))).slice(0, 28)
     }
 
+    function normalizeTitleCore(title) {
+      return String(title || '')
+        .toLowerCase()
+        .replace(/\([^)]*\)/g, ' ')
+        .replace(/\[[^\]]*\]/g, ' ')
+        .replace(
+          /\b(speed\s*up|sped\s*up|slowed|reverb|nightcore|daycore|8d|extended|remix|edit|version|ver\.|prod\.|cover|instrumental)\b/gi,
+          ' ',
+        )
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+    }
+
+    function isTrackVariantOfSeed(track, seed) {
+      const safe = sanitizeTrack(track)
+      const base = sanitizeTrack(seed)
+      if (!safe?.title || !base?.title) return false
+      const seedCore = normalizeTitleCore(base.title)
+      const trackCore = normalizeTitleCore(safe.title)
+      if (!seedCore || !trackCore) return false
+      if (seedCore === trackCore) return true
+      const shorter = seedCore.length <= trackCore.length ? seedCore : trackCore
+      const longer = seedCore.length > trackCore.length ? seedCore : trackCore
+      if (shorter.length >= 8 && longer.includes(shorter)) return true
+      const seedArt = getMyWavePrimaryArtist(base)
+      const trackArt = getMyWavePrimaryArtist(safe)
+      if (seedArt && trackArt && seedArt === trackArt) {
+        const tokens = seedCore.split(' ').filter((t) => t.length >= 4)
+        if (tokens.length >= 2) {
+          const hit = tokens.filter((t) => trackCore.includes(t)).length
+          if (hit >= Math.max(2, tokens.length - 1)) return true
+        }
+      }
+      return false
+    }
+
+    function buildSoundCloudWaveQueries(seedTracks, mode, profile) {
+      const cfg = MY_WAVE_MODES[mode] || MY_WAVE_MODES.default
+      const moodTerms = (cfg.queryTerms || []).slice(0, 4)
+      const queries = []
+      const pushQ = (q) => {
+        const s = String(q || '').trim()
+        if (s && s.length >= 4) queries.push(s)
+      }
+      const artists = getMyWaveTopArtists(seedTracks, 10)
+      artists.forEach((artist, idx) => {
+        const term = moodTerms[idx % moodTerms.length] || 'similar'
+        pushQ(`${artist} ${term}`)
+        pushQ(`artists like ${artist}`)
+        pushQ(`${artist} ${moodTerms[(idx + 1) % moodTerms.length] || 'music'}`)
+      })
+      getMyWavePreferenceTerms(profile, 8).forEach((token, idx) => {
+        pushQ(`${token} ${moodTerms[idx % moodTerms.length] || 'music'}`)
+      })
+      moodTerms.forEach((term) => pushQ(`${term} soundcloud mix`))
+      return Array.from(new Set(queries)).slice(0, 24)
+    }
+
     async function findMyWaveRecommendations(min = MY_WAVE_MIN_TRACKS, mode, opts = {}) {
       const modeId = MY_WAVE_MODES[mode] ? mode : 'default'
       const resetSession = !!opts?.resetSession
       const candidates = getMyWaveCandidates()
       const profile = buildMyWavePreferenceProfile(candidates)
       const target = Math.min(MY_WAVE_MAX_TRACKS, Math.max(MY_WAVE_MIN_TRACKS, Number(min) || MY_WAVE_MIN_TRACKS))
-      const seedTracks = getMyWaveSeedTracks()
+      const seedTracks = Array.isArray(opts?.seedTracks) && opts.seedTracks.length
+        ? opts.seedTracks.map((t) => sanitizeTrack(t)).filter((t) => t?.title || t?.id)
+        : getMyWaveSeedTracks()
+      const excludeSig = opts?.excludeTrack ? normalizeTrackSignature(sanitizeTrack(opts.excludeTrack)) : ''
+      const seedVariantBases = seedTracks.slice(0, 12)
       const settings = getSettings()
-      const sourceModeRaw = String(getMyWaveSource() || 'hybrid').toLowerCase()
-      const sourceMode = sourceModeRaw === 'vk' || sourceModeRaw === 'yandex' ? sourceModeRaw : 'hybrid'
+      const sourceModeRaw = String(opts?.forceSource || getMyWaveSource() || 'soundcloud').toLowerCase()
+      const sourceMode =
+        sourceModeRaw === 'vk' || sourceModeRaw === 'yandex'
+          ? sourceModeRaw
+          : 'soundcloud'
       if (sourceMode === 'yandex' && fetchYandexRotorMyWave) {
         const tok = String(settings?.yandexToken || '').trim()
         if (!tok) return []
@@ -487,6 +568,7 @@
             if (!sig) continue
             if (packSeen.has(sig) || (key && packSeen.has(key))) continue
             if (selectedIds.has(key) || selectedSigs.has(sig)) continue
+            if (isMyWaveJunkTrack(track)) continue
             const sec = getNormalizedTrackDurationSec(track)
             if (sec != null && sec < WAVE_MY_WAVE_MIN_DURATION_SEC) continue
             if (key) packSeen.add(key)
@@ -552,13 +634,17 @@
         }
         return filtered
       }
-      const queries = buildMyWaveQueries(seedTracks, modeId, profile)
+      const queries =
+        sourceMode === 'soundcloud'
+          ? buildSoundCloudWaveQueries(seedTracks, modeId, profile)
+          : buildMyWaveQueries(seedTracks, modeId, profile)
       const excluded = getMyWaveExcludedSignatures()
+      if (excludeSig) excluded.add(excludeSig)
       const selected = new Set()
       const selectedArtists = new Map()
       const found = []
       const searchByWaveSource = async (query) => {
-        if (sourceMode === 'hybrid') {
+        if (sourceMode === 'soundcloud' || sourceMode === 'hybrid') {
           const hybrid = await searchHybridTracks(query, settings)
           return sanitizeTrackList(hybrid?.tracks || [])
         }
@@ -578,17 +664,21 @@
           .filter(({ track }) => isMyWaveRecommendationAllowed(track, excluded, selected))
           .map(({ track, idx }) => ({ track, score: scoreMyWaveTrack(track, profile, modeId, idx) }))
           .sort((a, b) => b.score - a.score)
+        const maxPerQuery = sourceMode === 'soundcloud' ? 1 : 3
         let pickedFromQuery = 0
         for (const { track } of ranked) {
+          const sig = normalizeTrackSignature(track)
+          if (excludeSig && sig === excludeSig) continue
+          if (sourceMode === 'soundcloud' && seedVariantBases.some((seed) => isTrackVariantOfSeed(track, seed))) continue
           const artist = getMyWavePrimaryArtist(track)
           const artistCount = selectedArtists.get(artist) || 0
-          if (artist && artistCount >= 2 && found.length < target - 4) continue
-          const sig = normalizeTrackSignature(track)
+          const artistCap = sourceMode === 'soundcloud' ? 1 : 2
+          if (artist && artistCount >= artistCap && found.length < target - 4) continue
           selected.add(sig)
           if (artist) selectedArtists.set(artist, artistCount + 1)
           found.push(track)
           pickedFromQuery += 1
-          if (pickedFromQuery >= 3 || found.length >= target) break
+          if (pickedFromQuery >= maxPerQuery || found.length >= target) break
         }
       }
       return found.slice(0, target)

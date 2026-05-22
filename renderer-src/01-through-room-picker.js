@@ -609,7 +609,7 @@ const defaultVisual = {
   effects: { orbs: false, glow: true, dyncolor: false, accentFromCover: false },
   navActiveHighlight: false,
   sidebarPosition: 'left',
-  sidebarIconRail: true,
+  sidebarIconRail: false,
   sidebarIconRailPosition: 'top',
   cardDensity: 'comfort',
   toastPosition: 'default',
@@ -1015,6 +1015,8 @@ async function resolveActiveUiScalePct(v = getVisual()) {
 function applyUiScaleCss(pct) {
   const safe = clampUiScalePct(pct, 75, 140)
   document.documentElement.style.setProperty('--ui-scale', String(safe / 100))
+  const pmScale = clampUiScalePct(getStoredUiScaleFullscreen(getVisual()), 75, 140)
+  document.documentElement.style.setProperty('--pm-ui-scale', String(pmScale / 100))
   syncHomeConstructStackScalePct(safe)
   return safe
 }
@@ -1510,10 +1512,18 @@ function applyVisualBackdropFilters(blurPx, brightPercent) {
 function applyVisualSettings() {
   const blur   = document.getElementById('vs-blur')?.value ?? 40
   const bright = document.getElementById('vs-bright')?.value ?? 50
-  const glassEl = document.getElementById('vs-glass')
-  const glass = glassEl
-    ? glassStoredFromSliderTransparency(glassEl.value)
-    : (getVisual().glass ?? 8)
+  const v0glass = getVisual()
+  const glassOpPct = clampUiScalePct(
+    document.getElementById('vs-glass-opacity')?.value ?? v0glass.glassOpacity ?? Math.round((Number(v0glass.glass ?? 8) / VS_GLASS_SLIDER_MAX) * 100),
+    0,
+    100,
+  )
+  const glassSat = clampUiScalePct(
+    document.getElementById('vs-glass-strength')?.value ?? v0glass.glassSat ?? 150,
+    100,
+    220,
+  )
+  const glass = Math.round((glassOpPct / 100) * VS_GLASS_SLIDER_MAX)
   const pb     = document.getElementById('vs-panel-blur')?.value ?? 30
   const scaleLegacyEl = document.getElementById('vs-scale')
   const scaleWindowEl = document.getElementById('vs-scale-window')
@@ -1533,9 +1543,12 @@ function applyVisualSettings() {
 
   document.getElementById('vs-blur-val').textContent   = blur + 'px'
   document.getElementById('vs-bright-val').textContent = bright + '%'
-  const glassTr = glassTransparencyFromStored(glass)
-  const glassTrLabel = Number.isInteger(glassTr) ? `${glassTr}%` : `${glassTr.toFixed(1)}%`
-  if (document.getElementById('vs-glass-val')) document.getElementById('vs-glass-val').textContent = glassTrLabel
+  if (document.getElementById('vs-glass-opacity')) document.getElementById('vs-glass-opacity').value = String(glassOpPct)
+  if (document.getElementById('vs-glass-strength')) document.getElementById('vs-glass-strength').value = String(glassSat)
+  if (document.getElementById('vs-glass-opacity-val')) {
+    document.getElementById('vs-glass-opacity-val').textContent = `${glassOpPct}%`
+  }
+  if (document.getElementById('vs-glass-val')) document.getElementById('vs-glass-val').textContent = `${glassSat}%`
   document.getElementById('vs-panel-blur-val').textContent = pb + 'px'
   if (document.getElementById('vs-scale-val')) document.getElementById('vs-scale-val').textContent = legacyScale + '%'
   if (document.getElementById('vs-scale-window-val')) {
@@ -1550,6 +1563,8 @@ function applyVisualSettings() {
     blur: +blur,
     bright: +bright,
     glass: +glass,
+    glassOpacity: glassOpPct,
+    glassSat: glassSat,
     panelBlur: +pb,
     uiScaleWindow: windowScale,
     uiScaleFullscreen: fullscreenScale,
@@ -1557,7 +1572,9 @@ function applyVisualSettings() {
   })
 
   document.documentElement.style.setProperty('--glass-blur', pb + 'px')
-  document.documentElement.style.setProperty('--glass-bg', `rgba(255,255,255,${glass / 100})`)
+  document.documentElement.style.setProperty('--glass-saturate', `${glassSat}%`)
+  const glassBgAlpha = Math.max(0.02, Math.min(0.42, (glassOpPct / 100) * 0.4))
+  document.documentElement.style.setProperty('--glass-bg', `rgba(255,255,255,${glassBgAlpha})`)
   void applyUiScaleForWindowState(getVisual())
   applyToastPosition(v.toastPosition || 'default')
 
@@ -2367,7 +2384,12 @@ function initVisualSettings() {
   }
   setSlider('vs-blur', v.blur)
   setSlider('vs-bright', v.bright)
-  setSlider('vs-glass', glassTransparencyFromStored(v.glass))
+  const gStored = Number.isFinite(Number(v.glass)) ? Number(v.glass) : 8
+  const glassOpInit = Number.isFinite(Number(v.glassOpacity))
+    ? Math.round(Number(v.glassOpacity))
+    : Math.round((gStored / VS_GLASS_SLIDER_MAX) * 100)
+  setSlider('vs-glass-opacity', glassOpInit)
+  setSlider('vs-glass-strength', v.glassSat ?? 150)
   setSlider('vs-panel-blur', v.panelBlur)
   setSlider('vs-scale', v.uiScale || 100)
   setSlider('vs-scale-window', v.uiScaleWindow ?? v.uiScale ?? 100)
@@ -2375,9 +2397,11 @@ function initVisualSettings() {
   // Labels
   if (document.getElementById('vs-blur-val')) document.getElementById('vs-blur-val').textContent = v.blur + 'px'
   if (document.getElementById('vs-bright-val')) document.getElementById('vs-bright-val').textContent = v.bright + '%'
-  const gTr = glassTransparencyFromStored(v.glass)
+  if (document.getElementById('vs-glass-opacity-val')) {
+    document.getElementById('vs-glass-opacity-val').textContent = `${glassOpInit}%`
+  }
   if (document.getElementById('vs-glass-val')) {
-    document.getElementById('vs-glass-val').textContent = Number.isInteger(gTr) ? `${gTr}%` : `${gTr.toFixed(1)}%`
+    document.getElementById('vs-glass-val').textContent = `${v.glassSat ?? 150}%`
   }
   if (document.getElementById('vs-panel-blur-val')) document.getElementById('vs-panel-blur-val').textContent = v.panelBlur + 'px'
   if (document.getElementById('vs-scale-val')) document.getElementById('vs-scale-val').textContent = (v.uiScale || 100) + '%'
@@ -2391,7 +2415,9 @@ function initVisualSettings() {
   document.documentElement.style.setProperty('--accent', v.accent)
   document.documentElement.style.setProperty('--accent2', v.accent2)
   document.documentElement.style.setProperty('--glass-blur', v.panelBlur + 'px')
-  document.documentElement.style.setProperty('--glass-bg', `rgba(255,255,255,${v.glass/100})`)
+  document.documentElement.style.setProperty('--glass-saturate', `${v.glassSat ?? 150}%`)
+  const initGlassBgAlpha = Math.max(0.02, Math.min(0.42, (glassOpInit / 100) * 0.4))
+  document.documentElement.style.setProperty('--glass-bg', `rgba(255,255,255,${initGlassBgAlpha})`)
   void applyUiScaleForWindowState(v)
   applyVisualMode(v.visualMode || 'minimal')
   syncHomeLayoutConstructorUi()
@@ -3752,6 +3778,8 @@ function enterPlayerMode() {
   _playerModeActive = true
   const pm = document.getElementById('player-mode')
   pm.classList.remove('hidden')
+  const pmScale = clampUiScalePct(getStoredUiScaleFullscreen(getVisual()), 75, 140)
+  document.documentElement.style.setProperty('--pm-ui-scale', String(pmScale / 100))
   requestAnimationFrame(() => pm.classList.add('active'))
   refreshLyricsPanelsVisibility()
   syncPlayerModeUI()
