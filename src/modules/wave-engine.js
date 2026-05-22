@@ -63,7 +63,8 @@
   const WAVE_TASTE_MAX_ART = 22
   const WAVE_TASTE_MAX_TOK = 16
   const WAVE_MY_WAVE_MIN_DURATION_SEC = 75
-  const WAVE_SC_MAX_DURATION_SEC = 600
+  const WAVE_SC_MAX_DURATION_SEC = 480
+  const WAVE_SC_SOFT_MAX_DURATION_SEC = 360
 
   /** @typedef {ReturnType<typeof createWaveEngine>} WaveEngineApi */
 
@@ -343,6 +344,8 @@
       ]
       let pen = noisy.some((word) => text.includes(word)) ? 22 : 0
       const sec = getNormalizedTrackDurationSec(track)
+      if (sec != null && sec > WAVE_SC_SOFT_MAX_DURATION_SEC) pen += 80
+      else if (sec != null && sec > 300) pen += 36
       if (sec != null && sec < 45) pen += 40
       else if (sec != null && sec < WAVE_MY_WAVE_MIN_DURATION_SEC) pen += 14
       return pen
@@ -391,12 +394,18 @@
       if (!artist && title.length < 8 && /\d/.test(title)) return true
       if (title.length > 88 || title.split(/\s+/).filter(Boolean).length > 14) return true
       if (
-        /\b(viral|top\s*hits?|playlist|compilation|full\s*album|best\s*of|hour\s*mix|hours?\s*mix|non\s*stop|nonstop|terbaru|tiktok|spotify|indonesia|lagu\s*pop|сборник|плейлист|хиты\s*\d|mix\s*\d{4}|dj\s*mix|live\s*set)\b/i.test(
+        /\b(viral|top\s*hits?|playlist|compilation|full\s*album|best\s*of|hour\s*mix|hours?\s*mix|non\s*stop|nonstop|terbaru|tiktok|spotify|indonesia|lagu\s*pop|сборник|плейлист|хиты\s*\d|mix\s*\d{4}|dj\s*mix|live\s*set|trending|new\s*songs?|song\s*list|charts?|party\s*club|dance\s*mix|bootleg|remixes?\s*of|various\s*artists?)\b/i.test(
           combo,
         )
       ) {
         return true
       }
+      if (/\s-\s*topic$/i.test(artist) || /^topic$/i.test(artist)) return true
+      if (/\b(remix|mix|hits|chart|party|dance|bootleg|trending)\b/i.test(title) && title.split(/\s+/).length >= 6) {
+        return true
+      }
+      const remixHits = (title.match(/\b(remix|mix|hits|bootleg|chart|party)\b/gi) || []).length
+      if (remixHits >= 2) return true
       const sec = getNormalizedTrackDurationSec(track)
       if (sec != null && sec > WAVE_SC_MAX_DURATION_SEC) return true
       return false

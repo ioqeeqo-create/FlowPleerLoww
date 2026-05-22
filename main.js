@@ -4027,13 +4027,13 @@ ipcMain.handle('sc-search', async (e, { q, clientId }) => {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Origin': 'https://soundcloud.com', 'Referer': 'https://soundcloud.com/'
       }, 12000)
-      if (r.status === 401 || r.status === 403) return { ok: false, error: `SC: С‚РѕРєРµРЅ РЅРµРґРµР№СЃС‚РІРёС‚РµР»РµРЅ (${r.status})`, expired: true }
+      if (r.status === 401 || r.status === 403) return { ok: false, error: `SC: токен недействителен (${r.status})`, expired: true }
       if (r.status !== 200 || !r.body) continue
       const tracks = Array.isArray(r.body) ? r.body : (r.body.collection || r.body.tracks || [])
       return { ok: true, tracks }
     } catch { continue }
   }
-  return { ok: false, error: 'SC: РЅРµ СѓРґР°Р»РѕСЃСЊ РїРѕРґРєР»СЋС‡РёС‚СЊСЃСЏ' }
+  return { ok: false, error: 'SC: не удалось подключиться' }
 })
 
 // в”Ђв”Ђв”Ђ РЇРќР”Р•РљРЎ: СЃС‚СЂРёРј в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
@@ -4325,7 +4325,7 @@ ipcMain.handle('sc-stream', async (e, { transcodingUrl, clientId }) => {
       'Origin': 'https://soundcloud.com', 'Referer': 'https://soundcloud.com/'
     }, 10000)
     if (r.body?.url) return { ok: true, url: r.body.url }
-    return { ok: false, error: 'SC: РїСѓСЃС‚РѕР№ РѕС‚РІРµС‚ РїСЂРё РїРѕР»СѓС‡РµРЅРёРё СЃС‚СЂРёРјР°' }
+    return { ok: false, error: 'SC: пустой ответ при получении стрима' }
   } catch (err) {
     return { ok: false, error: err.message }
   }

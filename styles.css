@@ -4577,11 +4577,16 @@ body.media-player-bar-hidden.media-page-active {
   transition: opacity .16s ease, transform .16s ease, visibility .16s;
   z-index: 90;
 }
-.my-wave-settings-anchor.is-open .my-wave-settings-dropdown {
+.my-wave-settings-anchor.is-open .my-wave-settings-dropdown:not(.my-wave-settings-dropdown--rich) {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
   transform: translateY(0) scale(1);
+}
+.my-wave-settings-anchor.is-open .my-wave-settings-dropdown--rich {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 .my-wave-settings-section-label {
   font-size: 10px;
@@ -4647,6 +4652,17 @@ body.media-player-bar-hidden.media-page-active {
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate, 160%));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate, 160%));
+  top: calc(100% + 10px);
+  right: 50%;
+  transform: translate(50%, -14px) scale(0.94);
+  transform-origin: 50% 0;
+  transition:
+    opacity 0.22s ease,
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0.22s ease;
+}
+.my-wave-settings-anchor.is-open .my-wave-settings-dropdown--rich {
+  transform: translate(50%, 0) scale(1);
 }
 .my-wave-settings-source-pills {
   display: grid;
@@ -15510,6 +15526,31 @@ body.flow-slider-style-wave .flow-slider-host--wave .home-slider-wave-canvas {
   align-items: stretch !important;
   justify-content: center !important;
   gap: 12px !important;
+  width: 100% !important;
+  --home-head-shift: 0px !important;
+}
+#page-home.media-queue-off #home-media-player .home-clone-head {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 6px !important;
+  padding: 0 4px 0 8px !important;
+  margin: 0 !important;
+  transform: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+#page-home.media-queue-off #home-media-player .home-clone-title {
+  text-align: left !important;
+  align-self: flex-start !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  line-height: 1.08 !important;
+  word-break: break-word !important;
+}
+#page-home.media-queue-off #home-media-player .home-clone-artist {
+  text-align: center !important;
+  align-self: center !important;
   width: 100% !important;
 }
 

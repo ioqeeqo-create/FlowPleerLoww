@@ -7899,9 +7899,11 @@ function renderMyWaveSourceSlotInto(slotEl) {
             <span>VK</span>
           </button>
         </div>
-        <div class="my-wave-settings-section-label">Режим волны</div>
-        <div class="my-wave-settings-mode-grid">${modeButtons}</div>
-        <div class="my-wave-settings-vk-note">${sourceNote}</div>
+        ${
+          source === 'vk'
+            ? `<div class="my-wave-settings-vk-note">${sourceNote}</div>`
+            : `<div class="my-wave-settings-section-label">Режим волны</div><div class="my-wave-settings-mode-grid">${modeButtons}</div><div class="my-wave-settings-vk-note">${sourceNote}</div>`
+        }
       </div>
     </div>
   `
@@ -12797,8 +12799,9 @@ function syncHomeNxFooter() {
 function animateFlowMediaText(el, text, mode = 'letter') {
   if (!el) return
   const safe = String(text ?? '')
-  if (el.dataset.flowText === safe) return
-  el.dataset.flowText = safe
+  const flowKey = `${mode}:${safe}`
+  if (el.dataset.flowText === flowKey) return
+  el.dataset.flowText = flowKey
   el.classList.remove('flow-text-animated')
   const parts =
     mode === 'word'
@@ -12827,6 +12830,15 @@ function syncHomeCloneUI() {
   const tot = document.getElementById('home-clone-time-total')
   const prog = document.getElementById('home-clone-progress')
   if (!cover || !title || !artist || !cur || !tot || !prog) return
+  const trackKey = currentTrack ? `${currentTrack.source || ''}:${currentTrack.id || ''}:${currentTrack.title || ''}` : ''
+  if (title.dataset.flowTrackKey !== trackKey) {
+    title.dataset.flowTrackKey = trackKey
+    title.removeAttribute('data-flow-text')
+  }
+  if (artist.dataset.flowTrackKey !== trackKey) {
+    artist.dataset.flowTrackKey = trackKey
+    artist.removeAttribute('data-flow-text')
+  }
   if (currentTrack) {
     animateFlowMediaText(title, currentTrack.title || 'Ничего не играет', 'letter')
     animateFlowMediaText(artist, currentTrack.artist || '—', 'word')
@@ -12847,6 +12859,10 @@ function alignHomeHeaderToPlay() {
   const main = document.querySelector('.home-clone-main')
   const head = document.querySelector('.home-clone-head')
   const play = document.querySelector('.home-clone-controls .play-btn')
+  if (document.getElementById('page-home')?.classList.contains('media-queue-off')) {
+    if (main) main.style.setProperty('--home-head-shift', '0px')
+    return
+  }
   if (!main || !head || !play) return
   const mainRect = main.getBoundingClientRect()
   const headRect = head.getBoundingClientRect()
@@ -13962,7 +13978,7 @@ async function playTrackObj(track, opts = {}) {
       track = Object.assign({}, track, { url: streamUrl })
       currentTrack = track
     } else {
-      showToast('SoundCloud: ' + (res.error || 'ошибка'), true)
+      showToast('SoundCloud: ' + sanitizeDisplayText(String(res.error || 'ошибка').replace(/^SC:\s*/i, '')), true)
       if (playBtn) playBtn.innerHTML = ICONS.play
       return
     }
