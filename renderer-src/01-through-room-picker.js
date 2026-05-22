@@ -170,7 +170,7 @@ let _roomContext = null
 let _roomServerSaveTimer = null
 let _lastServerStatusCheckAt = 0
 const FRIEND_POLL_INTERVAL_MS = 2500
-const FRIEND_FRESH_ONLINE_MS = 120000
+const FRIEND_FRESH_ONLINE_MS = 45000
 const FRIEND_PROFILE_REFRESH_MS = 7000
 const FRIEND_ONLINE_STALE_MS = 180000
 const FLOW_SERVER_DEFAULT_URL = 'http://85.239.34.229:8787'
@@ -417,6 +417,37 @@ function mergeSharedQueueFromServer(serverRows = []) {
   return changed
 }
 
+function mergeGuestQueueWithServer(serverRows = []) {
+  const server = (serverRows || []).map((t) => sanitizeTrack(t)).filter(Boolean)
+  const pending = (sharedQueue || [])
+    .filter((t) => t && t._pendingGuestAdd)
+    .map((t) => {
+      const copy = sanitizeTrack(t)
+      if (copy && typeof copy === 'object') delete copy._pendingGuestAdd
+      return copy
+    })
+    .filter(Boolean)
+  const sigs = new Set(server.map((t) => normalizeTrackSignature(t)).filter(Boolean))
+  pending.forEach((track) => {
+    const sig = normalizeTrackSignature(track)
+    if (!sig || sigs.has(sig)) return
+    sigs.add(sig)
+    server.push(track)
+  })
+  return server
+}
+
+let _renderRoomMembersTimer = null
+let _roomMembersLastHtml = ''
+
+function scheduleRenderRoomMembers() {
+  if (_renderRoomMembersTimer) clearTimeout(_renderRoomMembersTimer)
+  _renderRoomMembersTimer = setTimeout(() => {
+    _renderRoomMembersTimer = null
+    renderRoomMembers()
+  }, 160)
+}
+
 function updateRoomUi() {
   const countEl = document.getElementById('room-members-count')
   const roleBadgeEl = document.getElementById('room-role-badge')
@@ -441,7 +472,7 @@ function updateRoomUi() {
   }
   syncSocialWidgetState()
   updateHostLockUi()
-  renderRoomMembers()
+  scheduleRenderRoomMembers()
   renderRoomNowPlaying()
   renderRoomQueue()
 }
@@ -7039,7 +7070,7 @@ function applyRoomMembersRowsFromServer(rows) {
     merged.set(_socialPeer.peer.id, getPublicProfilePayload(_profile.username))
   }
   _roomMembers = merged
-  renderRoomMembers()
+  scheduleRenderRoomMembers()
 }
 
 async function loadRoomStateFromServer(force = false) {
@@ -7073,7 +7104,7 @@ async function loadRoomStateFromServer(force = false) {
     // затирает локальную очередь (пропадают треки, «залипает» один старый).
     if (Array.isArray(room?.shared_queue)) {
       if (!_roomState.host) {
-        sharedQueue = room.shared_queue.map((t) => sanitizeTrack(t)).filter(Boolean)
+        sharedQueue = mergeGuestQueueWithServer(room.shared_queue)
         renderRoomQueue()
       } else if (mergeSharedQueueFromServer(room.shared_queue)) {
         renderRoomQueue()
@@ -7178,7 +7209,7 @@ function renderRoomMembers() {
     if (ah !== bh) return ah - bh
     return String(a.username || '').localeCompare(String(b.username || ''), 'ru')
   })
-  el.innerHTML = members.map((m) => {
+  const html = members.map((m) => {
     if (!m) return ''
     const isHost = Boolean(hostPeerId && m.peerId && m.peerId === hostPeerId)
     const avatar = m.avatarData
@@ -7187,6 +7218,9 @@ function renderRoomMembers() {
     const hostTag = isHost ? '<span class="room-host-pill">хост</span>' : ''
     return `<div class="social-friend-card online" oncontextmenu="openRoomMemberContextMenu(event, '${m.peerId || ''}', '${m.username || ''}')">${avatar}<div class="social-friend-meta"><strong>${m.username || 'user'} ${hostTag}</strong><span>${m.username === _profile?.username ? 'это вы' : 'в комнате'}</span></div></div>`
   }).join('') || '<div class="flow-empty-state compact"><strong>Нет участников</strong><span>Подключение появится здесь.</span></div>'
+  if (html === _roomMembersLastHtml) return
+  _roomMembersLastHtml = html
+  el.innerHTML = html
 }
 
 function broadcastRoomMembersState() {
@@ -7206,6 +7240,8 @@ function syncRoomPresenceHeartbeat() {
   if (!_socialPeer || !_roomState?.roomId || !_profile?.username) return
   const me = getPublicProfilePayload(_profile.username)
   if (_socialPeer?.peer?.id && me) _roomMembers.set(_socialPeer.peer.id, me)
+  const countEl = document.getElementById('room-members-count')
+  if (countEl) countEl.textContent = `Участники: ${_socialPeer.peersCount()}/3`
   if (amIRoomHost()) {
     _socialPeer.send({ type: 'room-profile-state', roomId: _roomState.roomId, profile: me, sharedQueue })
     broadcastRoomMembersState()
@@ -7213,7 +7249,7 @@ function syncRoomPresenceHeartbeat() {
     _socialPeer.send({ type: 'room-profile-state', roomId: _roomState.roomId, profile: me })
     _socialPeer.send({ type: 'room-queue-sync-request', roomId: _roomState.roomId })
   }
-  updateRoomUi()
+  scheduleRenderRoomMembers()
 }
 
 function resetRoomHeartbeat() {
@@ -7340,9 +7376,18 @@ async function enqueueSharedTrack(track) {
   }
   const payload = { type: 'room-queue-add', roomId: _roomState.roomId, track: cleanTrack }
   _socialPeer?.send(payload)
-  if (typeof _socialPeer?.sendToPeer === 'function' && _roomState?.hostPeerId) {
-    _socialPeer.sendToPeer(_roomState.hostPeerId, payload)
+  const hostPeerId = String(_roomState?.hostPeerId || '').trim()
+  if (typeof _socialPeer?.sendToPeer === 'function' && hostPeerId && hostPeerId !== _socialPeer?.peer?.id) {
+    _socialPeer.sendToPeer(hostPeerId, payload)
   }
+  setTimeout(() => {
+    if (!_roomState?.roomId || amIRoomHost()) return
+    _socialPeer?.send({ type: 'room-queue-sync-request', roomId: _roomState.roomId })
+    if (hostPeerId && typeof _socialPeer?.sendToPeer === 'function') {
+      _socialPeer.sendToPeer(hostPeerId, { type: 'room-queue-sync-request', roomId: _roomState.roomId })
+    }
+    loadRoomStateFromServer(true).catch(() => {})
+  }, 520)
   showToast('Трек отправлен хосту')
 }
 

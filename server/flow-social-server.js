@@ -574,9 +574,8 @@ app.get('/flow-api/v1/presence/friends/:owner', bearerAuth, (req, res) => {
   ).all(owner, owner)
 
   const out = rows.map((r) => {
-    const onlineFlag = Number(r?.online || 0) === 1
     const seen = String(r?.last_seen || '')
-    const online = onlineFlag || isFreshIso(seen, 180000)
+    const online = isFreshIso(seen, 120000)
     return {
       username: String(r?.username || '').trim().toLowerCase(),
       online,

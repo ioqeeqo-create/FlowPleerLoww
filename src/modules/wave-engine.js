@@ -63,6 +63,7 @@
   const WAVE_TASTE_MAX_ART = 22
   const WAVE_TASTE_MAX_TOK = 16
   const WAVE_MY_WAVE_MIN_DURATION_SEC = 75
+  const WAVE_SC_MAX_DURATION_SEC = 600
 
   /** @typedef {ReturnType<typeof createWaveEngine>} WaveEngineApi */
 
@@ -388,6 +389,16 @@
       if (/^(без\s*названия|unknown|untitled|audio\s*\d+)$/i.test(title)) return true
       if (title.length <= 12 && /\b(tiktok|tik\s*tok|тикток|reels|shorts)\b/i.test(combo)) return true
       if (!artist && title.length < 8 && /\d/.test(title)) return true
+      if (title.length > 88 || title.split(/\s+/).filter(Boolean).length > 14) return true
+      if (
+        /\b(viral|top\s*hits?|playlist|compilation|full\s*album|best\s*of|hour\s*mix|hours?\s*mix|non\s*stop|nonstop|terbaru|tiktok|spotify|indonesia|lagu\s*pop|сборник|плейлист|хиты\s*\d|mix\s*\d{4}|dj\s*mix|live\s*set)\b/i.test(
+          combo,
+        )
+      ) {
+        return true
+      }
+      const sec = getNormalizedTrackDurationSec(track)
+      if (sec != null && sec > WAVE_SC_MAX_DURATION_SEC) return true
       return false
     }
 

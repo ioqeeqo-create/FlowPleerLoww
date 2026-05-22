@@ -4379,6 +4379,15 @@ body.media-player-bar-hidden.media-page-active {
   position: relative;
   isolation: isolate;
 }
+.my-wave:has(.my-wave-settings-anchor.is-open),
+.main-hub-panel--wave:has(.my-wave-settings-anchor.is-open) {
+  overflow: visible;
+  z-index: 12;
+}
+.my-wave-settings-anchor.is-open .my-wave-settings-dropdown--rich {
+  max-height: min(72vh, 520px);
+  overflow-y: auto;
+}
 .my-wave-hero h3 {
   margin: 2px 0;
   font-size: 26px;

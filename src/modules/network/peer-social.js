@@ -525,12 +525,9 @@
         ])
           .then((row) => {
             if (!row) return resolve(false)
-            const onlineFlag = row.online === true || row.online === 1 || String(row.online || '') === '1'
             const seen = Date.parse(String(row.last_seen || row.lastSeen || ''))
             const seenFresh = !Number.isNaN(seen) && Date.now() - seen < freshWindowMs
-            if (onlineFlag && !Number.isNaN(seen)) return resolve(seenFresh)
-            if (onlineFlag) return resolve(true)
-            resolve(false)
+            resolve(seenFresh)
           })
           .catch(() => resolve(false))
       })

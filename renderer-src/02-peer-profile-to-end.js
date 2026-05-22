@@ -2843,6 +2843,9 @@ function initPeerSocial() {
           _socialPeer.sendToPeer(evt.peerId, { type: 'room-queue-sync-request', roomId: _roomState.roomId })
         }
         broadcastRoomMembersState()
+        if (!amIRoomHost() && _socialPeer?.send) {
+          _socialPeer.send({ type: 'room-members-request', roomId: _roomState.roomId })
+        }
         resetRoomHeartbeat()
         updateRoomUi()
         if (evt.peerId) showToast(`${String(evt.peerId).replace(/^flow-/, '')}: вошёл в руму`)
@@ -3004,9 +3007,8 @@ function initPeerSocial() {
         cachePeerProfile(profileWithPeer, pid)
         _roomMembers.set(pid, profileWithPeer)
         if (amIRoomHost()) broadcastRoomMembersState()
-        renderRoomMembers()
-        resetRoomHeartbeat()
-        updateRoomUi()
+        if (typeof scheduleRenderRoomMembers === 'function') scheduleRenderRoomMembers()
+        else renderRoomMembers()
       }
       if (msg.type === 'room-members-state' && msg.roomId === _roomState.roomId && Array.isArray(msg.members)) {
         msg.members.forEach((item) => {
@@ -3027,7 +3029,8 @@ function initPeerSocial() {
         if (_socialPeer?.peer?.id && _profile?.username && !_roomMembers.has(_socialPeer.peer.id)) {
           _roomMembers.set(_socialPeer.peer.id, getPublicProfilePayload(_profile.username))
         }
-        renderRoomMembers()
+        if (typeof scheduleRenderRoomMembers === 'function') scheduleRenderRoomMembers()
+        else renderRoomMembers()
         resetRoomHeartbeat()
         updateRoomUi()
       }
@@ -3041,6 +3044,13 @@ function initPeerSocial() {
         _socialPeer.send({ type: 'room-profile-state', roomId: _roomState.roomId, profile: getPublicProfilePayload(_profile?.username), sharedQueue })
         saveRoomStateToServer({ shared_queue: sharedQueue }).catch(() => {})
         renderRoomQueue()
+        const requesterId = String(msg._peerId || fromPeerId || '').trim()
+        const syncPayload = { type: 'room-queue-sync-state', roomId: _roomState.roomId, sharedQueue }
+        if (requesterId && typeof _socialPeer.sendToPeer === 'function') {
+          _socialPeer.sendToPeer(requesterId, syncPayload)
+        } else {
+          _socialPeer.send(syncPayload)
+        }
       }
       if (msg.type === 'room-sync-request' && msg.roomId === _roomState.roomId && amIRoomHost()) {
         broadcastPlaybackSync(true)
@@ -3073,12 +3083,27 @@ function initPeerSocial() {
         else _socialPeer.send(payload)
       }
       if (msg.type === 'room-queue-sync-state' && msg.roomId === _roomState.roomId && Array.isArray(msg.sharedQueue)) {
-        sharedQueue = msg.sharedQueue.map((t) => sanitizeTrack(t)).filter(Boolean)
+        sharedQueue = amIRoomHost()
+          ? msg.sharedQueue.map((t) => sanitizeTrack(t)).filter(Boolean)
+          : typeof mergeGuestQueueWithServer === 'function'
+            ? mergeGuestQueueWithServer(msg.sharedQueue)
+            : msg.sharedQueue.map((t) => sanitizeTrack(t)).filter(Boolean)
         renderRoomQueue()
       }
       if (msg.type === (peerSocial?.EVENTS?.QUEUE_UPDATE || 'queue-update') && msg.roomId === _roomState.roomId && Array.isArray(msg.sharedQueue)) {
-        sharedQueue = msg.sharedQueue.map((t) => sanitizeTrack(t)).filter(Boolean)
+        sharedQueue = amIRoomHost()
+          ? msg.sharedQueue.map((t) => sanitizeTrack(t)).filter(Boolean)
+          : typeof mergeGuestQueueWithServer === 'function'
+            ? mergeGuestQueueWithServer(msg.sharedQueue)
+            : msg.sharedQueue.map((t) => sanitizeTrack(t)).filter(Boolean)
         renderRoomQueue()
+      }
+      if (msg.type === 'room-members-request' && msg.roomId === _roomState.roomId && amIRoomHost()) {
+        broadcastRoomMembersState()
+        if (msg._peerId && typeof _socialPeer.sendToPeer === 'function') {
+          const members = Array.from(_roomMembers.entries()).map(([peerId, profile]) => ({ peerId, profile }))
+          _socialPeer.sendToPeer(msg._peerId, { type: 'room-members-state', roomId: _roomState.roomId, members })
+        }
       }
     },
   })
@@ -3231,6 +3256,8 @@ async function joinRoomById(forceRoomId = '') {
   startRoomServerSync({ skipInitialLoad: true })
   await upsertRoomMemberPresence().catch(() => {})
   await loadRoomStateFromServer(true).catch(() => {})
+  _socialPeer.send({ type: 'room-members-request', roomId: _roomState.roomId })
+  _socialPeer.send({ type: 'room-queue-sync-request', roomId: _roomState.roomId })
   updateRoomUi()
   showToast('Подключение к руме...')
 }
@@ -3484,16 +3511,12 @@ async function pollFriendsPresence(force = false) {
     const cloud = serverPresence?.get(uname) || null
     const freshOnline = !force && prev.online && (Date.now() - Number(prev.updatedAt || 0) < FRIEND_FRESH_ONLINE_MS)
     let isOnline = false
-    if (cloud) {
+    if (cloud !== null) {
       isOnline = Boolean(cloud.online)
     } else if (freshOnline) {
       isOnline = true
     } else {
       isOnline = await _socialPeer.probeUser(uname, 2800).catch(() => false)
-    }
-    if (!isOnline && (freshOnline || cloud === null)) {
-      const probed = await _socialPeer.probeUser(uname, 2200).catch(() => false)
-      if (probed) isOnline = true
     }
     if (!isOnline) {
       return [uname, { online: false, track: null, roomId: cloud?.roomId || null, peerId: cloud?.peerId || prev.peerId || null, updatedAt: Date.now() }]
