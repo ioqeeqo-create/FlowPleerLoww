@@ -4316,7 +4316,8 @@ function getSettings() {
     proxyBaseUrl: FLOW_SERVER_DEFAULT_URL,
     compactUi: false,
     mediaShowQueue: false,
-    mediaMetaAlign: 'left',
+    mediaAutoOpenOnPlay: true,
+    mediaMetaAlign: 'center',
     mediaPlayerBarMode: 'hide-on-media',
     minimizeToTrayOnClose: true,
     launchAtLogin: false,
@@ -4325,6 +4326,7 @@ function getSettings() {
   }
   if (typeof raw.compactUi !== 'boolean') raw.compactUi = false
   if (typeof raw.mediaShowQueue !== 'boolean') raw.mediaShowQueue = false
+  if (typeof raw.mediaAutoOpenOnPlay !== 'boolean') raw.mediaAutoOpenOnPlay = true
   const metaAlign = String(raw.mediaMetaAlign || 'left').trim().toLowerCase()
   raw.mediaMetaAlign = metaAlign === 'center' || metaAlign === 'right' ? metaAlign : 'left'
   const barMode = String(raw.mediaPlayerBarMode || 'always').trim().toLowerCase()
@@ -4499,6 +4501,10 @@ function isMediaQueueEnabled() {
   return getSettings().mediaShowQueue !== false
 }
 
+function isMediaAutoOpenOnPlayEnabled() {
+  return getSettings().mediaAutoOpenOnPlay !== false
+}
+
 function syncMediaQueueToggle() {
   const el = document.getElementById('toggle-media-show-queue')
   if (el) el.classList.toggle('active', isMediaQueueEnabled())
@@ -4597,6 +4603,20 @@ function setMediaPlayerBarMode(mode) {
 }
 window.setMediaPlayerBarMode = setMediaPlayerBarMode
 
+function toggleMediaAutoOpenOnPlay() {
+  const next = !isMediaAutoOpenOnPlayEnabled()
+  saveSettingsRaw({ mediaAutoOpenOnPlay: next })
+  const el = document.getElementById('toggle-media-auto-open')
+  if (el) el.classList.toggle('active', next)
+  showToast(next ? 'При треке открывается «Медиа»' : 'Экран не переключается при треке')
+}
+window.toggleMediaAutoOpenOnPlay = toggleMediaAutoOpenOnPlay
+
+function syncMediaAutoOpenToggle() {
+  const el = document.getElementById('toggle-media-auto-open')
+  if (el) el.classList.toggle('active', isMediaAutoOpenOnPlayEnabled())
+}
+
 function toggleMediaShowQueue() {
   const next = !isMediaQueueEnabled()
   saveSettingsRaw({ mediaShowQueue: next })
@@ -4634,6 +4654,16 @@ const HOME_NX_SRC_LOGOS = {
   vk: 'assets/source-vk.png',
   yandex: 'assets/source-yandex-music.png',
   hybrid: 'assets/source-soundcloud.png',
+}
+
+const TRACK_NOW_PLAYING_SRC_LOGOS = {
+  vk: 'assets/source-vk.png',
+  yandex: 'assets/source-yandex-music.png',
+  soundcloud: 'assets/source-soundcloud.png',
+  audius: 'assets/source-soundcloud.png',
+  hybrid: 'assets/source-soundcloud.png',
+  youtube: 'assets/source-soundcloud.png',
+  spotify: 'assets/auth/spotify.png',
 }
 
 let _homeNxPlaybackRamp = null
@@ -4844,6 +4874,18 @@ function pickHomeNxSource(src) {
   syncHomeNxSourceLogo(true)
 }
 window.pickHomeNxSource = pickHomeNxSource
+
+function syncHomeNxNowPlayingSource() {
+  const img = document.getElementById('home-nx-now-src-logo')
+  const wrap = document.getElementById('home-nx-now-playing-src')
+  if (!img) return
+  const raw = String(currentTrack?.source || '').trim().toLowerCase() || 'hybrid'
+  const src = TRACK_NOW_PLAYING_SRC_LOGOS[raw] || TRACK_NOW_PLAYING_SRC_LOGOS.hybrid
+  img.src = src
+  img.alt = raw
+  const labels = { vk: 'VK', yandex: 'Яндекс', soundcloud: 'SoundCloud', audius: 'Audius', youtube: 'YouTube', spotify: 'Spotify', hybrid: 'SoundCloud' }
+  if (wrap) wrap.title = `Источник: ${labels[raw] || raw}`
+}
 
 function syncHomeNxSourceLogo(pulse = false) {
   const raw = normalizeStoredActiveSource(getSettings()?.activeSource || currentSource || 'hybrid')
@@ -5947,6 +5989,7 @@ function loadSettingsPage() {
     applyOptimizationSettings()
     applyMediaQueueLayout()
     syncMediaMetaAlignUI()
+    syncMediaAutoOpenToggle()
     syncMediaPlayerBarModeUI()
     syncSearchSourceRows()
     syncAuthSourceStackActive()

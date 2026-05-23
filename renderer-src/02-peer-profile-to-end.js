@@ -5311,7 +5311,7 @@ function syncHomeNxFooter() {
     if (volVal) volVal.textContent = String(Math.max(0, Math.min(10, Math.round(slider * 10))))
   }
   try {
-    if (typeof syncHomeNxSourceLogo === 'function') syncHomeNxSourceLogo()
+    if (typeof syncHomeNxNowPlayingSource === 'function') syncHomeNxNowPlayingSource()
   } catch (_) {}
 }
 
@@ -5425,8 +5425,10 @@ function resizeHomeVisualizerCanvas() {
   const wrap = document.getElementById('home-visualizer-wrap')
   if (!canvas || !wrap || wrap.classList.contains('hidden')) return
   const r = wrap.getBoundingClientRect()
-  const rw = Math.max(1, Math.round(r.width))
-  const rh = Math.max(1, Math.round(r.height))
+  const waveSlider = document.body.classList.contains('flow-slider-style-wave')
+  const scale = waveSlider ? 0.92 : 1
+  const rw = Math.max(1, Math.round(r.width * scale))
+  const rh = Math.max(1, Math.round(r.height * scale))
   if (canvas.width !== rw || canvas.height !== rh) {
     canvas.width = rw
     canvas.height = rh
@@ -6112,10 +6114,11 @@ function drawHomeVisualizerFrame() {
     ctx.stroke()
     return
   }
-  const bars = 96
+  const waveSlider = document.body.classList.contains('flow-slider-style-wave')
+  const bars = waveSlider ? 44 : 72
   const step = Math.max(1, Math.floor(data.length / bars))
-  const bw = (w - 20) / bars
-  const barW = Math.max(1, bw - 5)
+  const bw = (w - 16) / bars
+  const barW = Math.max(1, bw - (waveSlider ? 3 : 4))
   for (let i = 0; i < bars; i++) {
     const val = data[i * step] || 0
     const bh = 8 + (Math.min(255, val * intensityScale) / 255) * (h - 24)
@@ -6152,7 +6155,7 @@ function startHomeVisualizerLoop() {
           const mode = typeof normalizeHomeWidgetMode === 'function' ? normalizeHomeWidgetMode(hw.mode) : hw.mode
           const heavy = mode === 'liquid'
           const waveSlider = document.body.classList.contains('flow-slider-style-wave')
-          const minMs = playing ? (heavy ? 72 : (waveSlider ? 56 : 44)) : 260
+          const minMs = playing ? (heavy ? 48 : (waveSlider ? 28 : 36)) : 240
           if (now - _homeVizLastDrawAt < minMs) shouldDraw = false
           else _homeVizLastDrawAt = now
         }
@@ -6840,7 +6843,7 @@ async function playTrackObj(track, opts = {}) {
   } else {
     setTimeout(deferHeavyPlaybackUi, 16)
   }
-  try { maybeNavigateToMediaAfterWavePlay(track) } catch (_) {}
+  try { maybeNavigateToMediaOnPlay(track) } catch (_) {}
   // РЎРёРЅС…СЂРѕРЅРёР·РёСЂСѓРµРј fullscreen РїР»РµРµСЂ
   syncPlayerModeUI()
   syncTrackCoverStatus()
@@ -7564,8 +7567,9 @@ window.clearSearchInput = clearSearchInput
 
 let _waveMediaNavPending = false
 
-function maybeNavigateToMediaAfterWavePlay(track) {
-  if (!track || queueScope !== 'myWave') return
+function maybeNavigateToMediaOnPlay(track) {
+  if (!track) return
+  if (typeof isMediaAutoOpenOnPlayEnabled === 'function' && !isMediaAutoOpenOnPlayEnabled()) return
   if (_activePageId === 'home') return
   if (_waveMediaNavPending) return
   _waveMediaNavPending = true
@@ -7576,8 +7580,12 @@ function maybeNavigateToMediaAfterWavePlay(track) {
     try { openPage('home') } catch (_) {}
     window.setTimeout(() => document.body.classList.remove('wave-to-media-transition'), 480)
   }
-  window.setTimeout(go, 320)
+  window.setTimeout(go, 280)
 }
+function maybeNavigateToMediaAfterWavePlay(track) {
+  maybeNavigateToMediaOnPlay(track)
+}
+window.maybeNavigateToMediaOnPlay = maybeNavigateToMediaOnPlay
 window.maybeNavigateToMediaAfterWavePlay = maybeNavigateToMediaAfterWavePlay
 
 function toggleSearchSourcePopover(ev) {

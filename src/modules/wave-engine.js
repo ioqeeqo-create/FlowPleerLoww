@@ -198,7 +198,11 @@
       const combo = `${artist} ${title}`.trim().toLowerCase()
       const words = title.split(/\s+/).filter(Boolean)
       if (isMyWaveUploadFarmArtist(artist)) return true
+      if (/\b(?:music\s+in\s+(?:the\s+)?description|in\s+(?:de\s+)?scription|description\s+music)\b/i.test(combo)) {
+        return true
+      }
       if (/#\w{3,}/i.test(title) || (title.match(/#/g) || []).length >= 1) return true
+      if (/\bfeat\.?\b/i.test(title) && words.length >= 6) return true
       if (/\.(mp3|wav|flac|m4a)\b/i.test(title)) return true
       if (/\bfollow\b/i.test(title) && words.length >= 4) return true
       if (/\bindie\s+music\s+label\b/i.test(combo)) return true

@@ -16990,20 +16990,38 @@ body.layout-top-nav .nav-item.active svg {
 #page-home #home-media-player .home-clone-head {
   display: flex !important;
   flex-direction: column !important;
-  align-items: stretch !important;
-  text-align: left;
+  align-items: center !important;
+  text-align: center !important;
   transform: none !important;
-  gap: 4px !important;
+  gap: 6px !important;
 }
 #page-home #home-media-player .home-clone-title {
-  align-self: flex-start !important;
-  text-align: left !important;
+  align-self: center !important;
+  text-align: center !important;
   width: 100%;
 }
 #page-home #home-media-player .home-clone-artist {
   align-self: center !important;
   text-align: center !important;
   width: 100%;
+}
+#page-home.media-meta-align-left #home-media-player .home-clone-head {
+  align-items: flex-start !important;
+  text-align: left !important;
+}
+#page-home.media-meta-align-left #home-media-player .home-clone-title,
+#page-home.media-meta-align-left #home-media-player .home-clone-artist {
+  text-align: left !important;
+  align-self: flex-start !important;
+}
+#page-home.media-meta-align-right #home-media-player .home-clone-head {
+  align-items: flex-end !important;
+  text-align: right !important;
+}
+#page-home.media-meta-align-right #home-media-player .home-clone-title,
+#page-home.media-meta-align-right #home-media-player .home-clone-artist {
+  text-align: right !important;
+  align-self: flex-end !important;
 }
 #page-home #home-media-player .home-nx-vol-row {
   display: grid !important;
@@ -17019,17 +17037,41 @@ body.layout-top-nav .nav-item.active svg {
   align-items: center;
   gap: 8px;
   justify-self: center;
-  min-width: min(280px, 42vw);
+  min-width: min(300px, 46vw);
 }
 #page-home #home-media-player .home-nx-vol-center .home-nx-volume {
   flex: 1;
   min-width: 96px;
+}
+#page-home #home-media-player .home-nx-vol-center .home-nx-vol-val {
+  min-width: 1.4em;
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.78);
 }
 #page-home #home-media-player .home-nx-vol-side--right {
   justify-self: end;
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.home-nx-now-playing-src {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+.home-nx-now-src-logo {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  border-radius: 6px;
 }
 #page-home.media-queue-off #home-media-player .home-clone {
   border: 1px solid rgba(255, 255, 255, 0.14);
