@@ -9086,11 +9086,20 @@ body.visual-floated:not(.layout-top-nav):not(.layout-bottom-nav):not(.visual-min
   opacity:0; filter:blur(5px); transform:translateY(7px);
 }
 .lyrics-line-main,
-.lyrics-line-adlib { white-space:nowrap; word-break:keep-all; overflow-wrap:normal; }
+.lyrics-line-adlib {
+  display:block;
+  width:100%;
+  max-width:100%;
+  white-space:normal;
+  word-break:keep-all;
+  overflow-wrap:break-word;
+  overflow:visible;
+}
 .lyrics-line-adlib { margin-top:0.28em; font-size:0.82em; font-weight:600; opacity:0.88; color:rgba(255,255,255,0.42); }
 .lyrics-line.active .lyrics-line-adlib { color:rgba(255,255,255,0.72); }
-.lyrics-word { display:inline-block; white-space:nowrap; vertical-align:baseline; }
+.lyrics-word { display:inline; white-space:normal; vertical-align:baseline; }
 .lyrics-word--adlib { font-weight:700; }
+body.lyrics-mode-karaoke .lyrics-word { display:inline-block; white-space:nowrap; max-width:100%; overflow-wrap:break-word; }
 .lyrics-line.is-visible { opacity:1; filter:blur(0px); transform:translateY(0); }
 .lyrics-line:hover { color:rgba(255,255,255,0.6); }
 .lyrics-line.active { color:#fff; font-size:16px; font-weight:600; transform:scale(1.02); transform-origin:left center; }
@@ -11719,11 +11728,21 @@ body.visual-yandex .yandex-ai-more {
   filter:blur(0);
   transform:translateY(0);
 }
+.pm-lyrics-content .lyrics-line {
+  width:100%;
+  max-width:100%;
+  box-sizing:border-box;
+  overflow:visible;
+}
 .pm-lyrics-content .lyrics-line-main,
 .pm-lyrics-content .lyrics-line-adlib {
-  white-space:nowrap;
+  display:block;
+  width:100%;
+  max-width:100%;
+  white-space:normal;
   word-break:keep-all;
-  overflow-wrap:normal;
+  overflow-wrap:break-word;
+  overflow:visible;
 }
 .pm-lyrics-content .lyrics-line-adlib {
   margin-top:0.32em;
@@ -11736,9 +11755,15 @@ body.visual-yandex .yandex-ai-more {
   color:rgba(255,255,255,0.82);
 }
 .pm-lyrics-content .lyrics-word {
+  display:inline;
+  white-space:normal;
+  vertical-align:baseline;
+}
+body.lyrics-mode-karaoke .pm-lyrics-content .lyrics-word {
   display:inline-block;
   white-space:nowrap;
-  vertical-align:baseline;
+  max-width:100%;
+  overflow-wrap:break-word;
 }
 .pm-lyrics-content .lyrics-line.is-visible { opacity:1; filter:blur(0px); transform:translateY(0); }
 .pm-lyrics-content .lyrics-line.past,
