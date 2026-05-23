@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('api', {
   scFetchClientId: () => ipcRenderer.invoke('sc-fetch-client-id'),
   scSearch: (q, clientId) => ipcRenderer.invoke('sc-search', { q, clientId }),
   scStream: (transcodingUrl, clientId) => ipcRenderer.invoke('sc-stream', { transcodingUrl, clientId }),
+  scResolvePlayback: (payload) => ipcRenderer.invoke('sc-resolve-playback', payload || {}),
   yandexStream: (trackId, token) => ipcRenderer.invoke('yandex-stream', { trackId, token }),
   yandexMyWaveFetch: (payload) => ipcRenderer.invoke('yandex-my-wave-fetch', payload || {}),
   yandexRotorFeedback: (payload) => ipcRenderer.invoke('yandex-rotor-feedback', payload || {}),

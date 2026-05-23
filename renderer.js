@@ -12880,6 +12880,136 @@ function sanitizeDownloadFileBase(name = '') {
     .slice(0, 180) || 'track'
 }
 
+function patchSavedTrackStreamFields(track, patch) {
+  const safe = sanitizeTrack(track)
+  const src = String(safe?.source || '').toLowerCase()
+  const id = String(safe?.id || '').trim()
+  if (!src || !id || !patch || typeof patch !== 'object') return
+  const match = (t) => String(t?.source || '').toLowerCase() === src && String(t?.id || '').trim() === id
+  try {
+    const liked = getLiked()
+    let likedChanged = false
+    const nextLiked = liked.map((t) => {
+      if (!match(t)) return t
+      likedChanged = true
+      return sanitizeTrack(Object.assign({}, t, patch))
+    })
+    if (likedChanged) localStorage.setItem('flow_liked', JSON.stringify(nextLiked))
+  } catch (_) {}
+  try {
+    const pls = getPlaylists().map(normalizePlaylist)
+    let plChanged = false
+    const nextPls = pls.map((pl) => {
+      let innerChanged = false
+      const tracks = (pl.tracks || []).map((t) => {
+        if (!match(t)) return t
+        innerChanged = true
+        return sanitizeTrack(Object.assign({}, t, patch))
+      })
+      if (innerChanged) {
+        plChanged = true
+        return Object.assign({}, pl, { tracks })
+      }
+      return pl
+    })
+    if (plChanged) savePlaylists(nextPls)
+  } catch (_) {}
+  try {
+    if (queue.length && queueIndex >= 0 && queue[queueIndex] && match(queue[queueIndex])) {
+      queue[queueIndex] = sanitizeTrack(Object.assign({}, queue[queueIndex], patch))
+    }
+  } catch (_) {}
+}
+
+async function resolveSoundCloudPlayback(track) {
+  const safe = sanitizeTrack(track)
+  const s = getSettings()
+  const manualId = String(s?.soundcloudClientId || '').trim()
+  if (window.api?.scResolvePlayback) {
+    const res = await window.api
+      .scResolvePlayback({
+        trackId: safe.id,
+        transcodingUrl: safe.scTranscoding,
+        clientId: safe.scClientId || manualId,
+        manualScId: manualId,
+      })
+      .catch((e) => ({ ok: false, error: e?.message || String(e) }))
+    if (res?.ok && res?.url) {
+      const patch = {
+        url: String(res.url),
+        scClientId: res.scClientId || safe.scClientId || manualId,
+        scTranscoding: res.scTranscoding || safe.scTranscoding,
+        source: 'soundcloud',
+      }
+      if (res.id) patch.id = String(res.id)
+      if (res.duration_ms) patch.duration_ms = res.duration_ms
+      const merged = sanitizeTrack(Object.assign({}, safe, patch))
+      patchSavedTrackStreamFields(safe, patch)
+      return { ok: true, track: merged, url: patch.url }
+    }
+    return { ok: false, error: res?.error || 'SoundCloud: не удалось получить поток' }
+  }
+  if (safe.scTranscoding && window.api?.scStream) {
+    const cid = safe.scClientId || manualId || (await getScClientId(manualId).catch(() => ''))
+    const res = await window.api.scStream(safe.scTranscoding, cid).catch((e) => ({ ok: false, error: e?.message || String(e) }))
+    if (res?.ok && res?.url) {
+      const patch = { url: String(res.url), scClientId: cid, scTranscoding: safe.scTranscoding }
+      const merged = sanitizeTrack(Object.assign({}, safe, patch))
+      patchSavedTrackStreamFields(safe, patch)
+      return { ok: true, track: merged, url: patch.url }
+    }
+    return { ok: false, error: res?.error }
+  }
+  if (/^https?:\/\//i.test(String(safe.url || ''))) {
+    return { ok: true, track: safe, url: String(safe.url) }
+  }
+  return { ok: false, error: 'SoundCloud: нет данных для потока' }
+}
+
+async function trySoundCloudPlaybackFallback(track) {
+  const safe = sanitizeTrack(track)
+  const query = `${safe.title || ''} ${safe.artist || ''}`.trim()
+  if (!query) return null
+  const s = getSettings()
+  try {
+    const scList = await searchSoundCloud(query, s.soundcloudClientId).catch(() => [])
+    const match =
+      (scList || []).find((t) => String(t.id) === String(safe.id)) ||
+      (scList || []).find((t) => {
+        const a = String(t.title || '').toLowerCase()
+        const b = String(safe.title || '').toLowerCase()
+        return a && b && (a.includes(b) || b.includes(a))
+      }) ||
+      scList?.[0]
+    if (match) {
+      const res = await resolveSoundCloudPlayback(
+        Object.assign({}, safe, {
+          id: match.id,
+          scTranscoding: match.scTranscoding,
+          scClientId: match.scClientId,
+          cover: safe.cover || match.cover,
+        }),
+      )
+      if (res?.ok) return res
+    }
+  } catch (_) {}
+  try {
+    const aud = await searchAudius(query).catch(() => [])
+    if (aud?.[0]?.url) {
+      const merged = sanitizeTrack(
+        Object.assign({}, safe, {
+          source: 'audius',
+          id: String(aud[0].id),
+          url: String(aud[0].url),
+          cover: safe.cover || aud[0].cover,
+        }),
+      )
+      return { ok: true, track: merged, url: merged.url }
+    }
+  } catch (_) {}
+  return null
+}
+
 async function resolveTrackRemoteStreamUrl(track) {
   if (!track) return ''
   let streamUrl = String(track.url || '').trim()
@@ -12891,10 +13021,15 @@ async function resolveTrackRemoteStreamUrl(track) {
     if (!ymRes?.ok || !ymRes?.url) throw new Error(ymRes?.error || 'не удалось получить поток')
     streamUrl = String(ymRes.url)
   }
-  if (src === 'soundcloud' && track.scTranscoding && window.api?.scStream) {
-    const res = await window.api.scStream(track.scTranscoding, track.scClientId).catch((e) => ({ ok: false, error: e?.message || String(e) }))
-    if (!res?.ok || !res?.url) throw new Error(res?.error || 'SoundCloud: ошибка потока')
-    streamUrl = String(res.url)
+  if (src === 'soundcloud') {
+    const res = await resolveSoundCloudPlayback(track)
+    if (!res?.ok) {
+      const fb = await trySoundCloudPlaybackFallback(track)
+      if (!fb?.ok) throw new Error(res?.error || fb?.error || 'SoundCloud: ошибка потока')
+      streamUrl = String(fb.url)
+    } else {
+      streamUrl = String(res.url)
+    }
   }
   if (src === 'youtube' && track.ytId && window.api?.youtubeStream) {
     if (!/^https?:\/\//i.test(streamUrl)) {
@@ -14144,17 +14279,27 @@ async function playTrackObj(track, opts = {}) {
     currentTrack = track
   }
 
-  // SoundCloud transcoding URL -> direct stream URL
-  if (track.source === 'soundcloud' && track.scTranscoding && window.api?.scStream) {
-    const res = await window.api.scStream(track.scTranscoding, track.scClientId).catch(e => ({ ok: false, error: e.message }))
+  // SoundCloud: свежий transcoding по id + запасной поиск
+  if (track.source === 'soundcloud') {
+    setStage('SoundCloud: получаю поток…')
+    let scRes = await resolveSoundCloudPlayback(track)
     if (isStale()) return
-    if (res.ok && res.url) {
-      streamUrl = res.url
-      track = Object.assign({}, track, { url: streamUrl })
+    if (!scRes?.ok) {
+      setStage('SoundCloud: ищу альтернативу…')
+      scRes = await trySoundCloudPlaybackFallback(track)
+      if (isStale()) return
+    }
+    if (scRes?.ok && scRes.url) {
+      streamUrl = scRes.url
+      track = scRes.track || Object.assign({}, track, { url: streamUrl })
       currentTrack = track
     } else {
-      showToast('SoundCloud: ' + sanitizeDisplayText(String(res.error || 'ошибка').replace(/^SC:\s*/i, '')), true)
+      showToast(
+        'SoundCloud: ' + sanitizeDisplayText(String(scRes?.error || 'не удалось открыть поток').replace(/^SC:\s*/i, '')),
+        true,
+      )
       if (playBtn) playBtn.innerHTML = ICONS.play
+      setStage('SoundCloud: ошибка')
       return
     }
   }
@@ -14935,6 +15080,34 @@ window.__flowPlayerAudioError = function __flowPlayerAudioError(el) {
       }).catch(() => flowAdvanceAfterStreamFailure())
       return
     }
+  }
+  if (src === 'soundcloud' && t) {
+    void resolveSoundCloudPlayback(t)
+      .then((res) => {
+        if (!res?.ok) return trySoundCloudPlaybackFallback(t)
+        return res
+      })
+      .then((res) => {
+        if (res?.ok && res?.url) {
+          const nt = res.track || Object.assign({}, t, { url: res.url })
+          currentTrack = nt
+          patchSavedTrackStreamFields(t, {
+            url: res.url,
+            scClientId: nt.scClientId,
+            scTranscoding: nt.scTranscoding,
+          })
+          if (queue.length && queueIndex >= 0 && queue[queueIndex]) {
+            const qi = sanitizeTrack(queue[queueIndex])
+            if (String(qi.source || '').toLowerCase() === 'soundcloud') {
+              queue[queueIndex] = nt
+            }
+          }
+          return playTrackObj(nt, { _recoverPlayback: true }).catch(() => flowAdvanceAfterStreamFailure())
+        }
+        flowAdvanceAfterStreamFailure()
+      })
+      .catch(() => flowAdvanceAfterStreamFailure())
+    return
   }
   flowAdvanceAfterStreamFailure()
 }

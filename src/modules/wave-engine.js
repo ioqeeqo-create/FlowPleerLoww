@@ -205,6 +205,11 @@
       if (/\boriginal\s+version\b/i.test(combo) || /\*[^*]{0,48}original[^*]{0,48}\*/i.test(title)) return true
       if (/@[\w.-]{2,}/.test(title) && words.length >= 3) return true
       if (/\balbum\s+just\s+for\s+you\b/i.test(combo)) return true
+      if (/\b(type\s*beat|free\s*download|buy\s*1\s*get|lease\s*now|prod\.?\s*by|promo\s*only|reupload|re-upload)\b/i.test(combo)) {
+        return true
+      }
+      if (/\b(slowed\s*\+\s*reverb|sped\s*up|nightcore|8d\s*audio|bass\s*boosted)\b/i.test(combo) && words.length >= 4) return true
+      if (/\b\d+\s*(?:hour|hours|min|minute)s?\s*(?:mix|megamix)\b/i.test(combo)) return true
       if (/#\w{3,}/i.test(title) || (title.match(/#/g) || []).length >= 1) return true
       if (/\bfeat\.?\b/i.test(title) && words.length >= 6) return true
       if (/\.(mp3|wav|flac|m4a)\b/i.test(title)) return true
@@ -495,6 +500,9 @@
         score += getMyWaveMoodScore(track, mode) * 0.35
         score += getMyWaveOfficialBonus(track)
         score -= getMyWaveQualityPenalty(track, mode)
+        score -= Math.min(getMyWaveVibeScore(track, mode), 18)
+        const text = `${track?.artist || ''} ${track?.title || ''}`.toLowerCase()
+        if (/\b(viral|tiktok|phonk\s*viral|trending|type\s*beat|free\s*download)\b/i.test(text)) score -= 24
       } else {
         score += getMyWaveMoodScore(track, mode)
         score += getMyWaveTrendScore(track, resultIndex)
@@ -833,7 +841,7 @@
         for (const { track, score } of ranked) {
           const sig = normalizeTrackSignature(track)
           if (excludeSig && sig === excludeSig) continue
-          if ((sourceMode === 'soundcloud' || sourceMode === 'vk') && score < 3) continue
+          if ((sourceMode === 'soundcloud' || sourceMode === 'vk') && score < 4) continue
           if ((sourceMode === 'soundcloud' || sourceMode === 'vk') && seedVariantBases.some((seed) => isTrackVariantOfSeed(track, seed))) continue
           const artist = getMyWavePrimaryArtist(track)
           const artistCount = selectedArtists.get(artist) || 0

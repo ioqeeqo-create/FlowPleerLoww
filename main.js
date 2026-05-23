@@ -4334,17 +4334,139 @@ ipcMain.handle('yandex-track-unlike', async (e, { token, trackId }) => {
 })
 
 // в”Ђв”Ђв”Ђ SOUNDCLOUD: СЃС‚СЂРёРј в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
-ipcMain.handle('sc-stream', async (e, { transcodingUrl, clientId }) => {
+function scTranscodingSortScore(tr) {
+  const preset = String(tr?.preset || tr?.quality || '')
+  const proto = String(tr?.format?.protocol || '').toLowerCase()
+  let score = proto === 'progressive' ? 80 : proto === 'hls' ? 5 : 20
+  const mp3 = preset.match(/mp3_(\d+)_(\d+)/i)
+  if (mp3) score += Number(mp3[1]) * 24 + Number(mp3[2])
+  const opus = preset.match(/opus_(\d+)_(\d+)/i)
+  if (opus) score += Number(opus[1]) * 18 + Number(opus[2])
+  if (/hq|high|256|320/i.test(preset)) score += 48
+  return score
+}
+
+function orderedScTranscodingUrls(transcodings, extraUrl = '') {
+  const list = Array.isArray(transcodings) ? transcodings.filter((tr) => tr?.url) : []
+  const urls = [...list].sort((a, b) => scTranscodingSortScore(b) - scTranscodingSortScore(a)).map((tr) => tr.url)
+  const extra = String(extraUrl || '').trim()
+  if (extra && !urls.includes(extra)) urls.unshift(extra)
+  return urls
+}
+
+async function resolveScStreamFromUrl(transcodingUrl, clientId) {
   try {
-    const parsed = new URL(transcodingUrl + (transcodingUrl.includes('?') ? '&' : '?') + `client_id=${clientId}`)
+    const raw = String(transcodingUrl || '').trim()
+    if (!raw) return { ok: false, error: 'нет transcoding URL' }
+    const parsed = new URL(raw + (raw.includes('?') ? '&' : '?') + `client_id=${encodeURIComponent(clientId)}`)
     const r = await httpsGetJson(parsed.hostname, parsed.pathname + parsed.search, {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Origin': 'https://soundcloud.com', 'Referer': 'https://soundcloud.com/'
-    }, 10000)
+      'Origin': 'https://soundcloud.com',
+      'Referer': 'https://soundcloud.com/',
+    }, 12000)
+    if (r.status === 401 || r.status === 403) return { ok: false, auth: true, error: `SC: ${r.status}` }
     if (r.body?.url) return { ok: true, url: r.body.url }
-    return { ok: false, error: 'SC: пустой ответ при получении стрима' }
+    return { ok: false, error: 'пустой ответ при получении стрима' }
   } catch (err) {
     return { ok: false, error: err.message }
+  }
+}
+
+async function fetchScTrackMeta(trackId, clientId) {
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'Origin': 'https://soundcloud.com',
+    'Referer': 'https://soundcloud.com/',
+  }
+  for (const host of ['api-v2.soundcloud.com', 'api.soundcloud.com']) {
+    try {
+      const r = await httpsGetJson(
+        host,
+        `/tracks/${encodeURIComponent(trackId)}?client_id=${encodeURIComponent(clientId)}`,
+        headers,
+        12000,
+      )
+      if (r.status === 401 || r.status === 403) return { ok: false, auth: true }
+      if (r.status === 200 && r.body && typeof r.body === 'object') return { ok: true, track: r.body }
+    } catch (_) {}
+  }
+  return { ok: false }
+}
+
+ipcMain.handle('sc-stream', async (e, { transcodingUrl, clientId }) => {
+  const r = await resolveScStreamFromUrl(transcodingUrl, clientId)
+  if (r.ok) return { ok: true, url: r.url }
+  return { ok: false, error: 'SC: ' + (r.error || 'пустой ответ при получении стрима') }
+})
+
+ipcMain.handle('sc-resolve-playback', async (e, { trackId, transcodingUrl, clientId, manualScId }) => {
+  try {
+    let cid = String(clientId || manualScId || '').trim()
+    if (!cid) cid = await resolveScClientIdForServerSearch(manualScId)
+
+    const tryUrlList = async (urls) => {
+      const uniq = [...new Set((urls || []).map((u) => String(u || '').trim()).filter(Boolean))]
+      for (const u of uniq) {
+        const r = await resolveScStreamFromUrl(u, cid)
+        if (r.ok) return r
+        if (r.auth) return r
+      }
+      return { ok: false, error: 'не удалось открыть поток' }
+    }
+
+    const tid = String(trackId || '').trim()
+    let trackMeta = null
+    let urls = []
+
+    const loadMeta = async () => {
+      if (!tid) return false
+      const meta = await fetchScTrackMeta(tid, cid)
+      if (!meta.ok) return meta.auth ? 'auth' : false
+      trackMeta = meta.track
+      urls = orderedScTranscodingUrls(trackMeta.media?.transcodings, transcodingUrl)
+      if (trackMeta.stream_url) {
+        const direct = `${trackMeta.stream_url}${String(trackMeta.stream_url).includes('?') ? '&' : '?'}client_id=${encodeURIComponent(cid)}`
+        urls.push(direct)
+      }
+      return true
+    }
+
+    let metaOk = await loadMeta()
+    if (metaOk === 'auth') {
+      _scClientIdCache = null
+      _scClientIdExpiry = 0
+      cid = await resolveScClientIdForServerSearch(manualScId)
+      metaOk = await loadMeta()
+    }
+    if (!urls.length && transcodingUrl) urls = [String(transcodingUrl)]
+
+    let stream = await tryUrlList(urls)
+    if (!stream.ok) {
+      _scClientIdCache = null
+      _scClientIdExpiry = 0
+      try {
+        cid = await resolveScClientIdForServerSearch(manualScId)
+      } catch (_) {}
+      urls = []
+      metaOk = await loadMeta()
+      if (!urls.length && transcodingUrl) urls = [String(transcodingUrl)]
+      stream = await tryUrlList(urls)
+    }
+
+    if (!stream.ok) return { ok: false, error: 'SC: ' + (stream.error || 'пустой ответ при получении стрима') }
+
+    const freshTranscoding = pickBestScTranscoding(trackMeta?.media?.transcodings) || transcodingUrl || null
+    return {
+      ok: true,
+      url: stream.url,
+      scClientId: cid,
+      scTranscoding: freshTranscoding,
+      id: tid || (trackMeta?.id != null ? String(trackMeta.id) : ''),
+      title: trackMeta?.title || '',
+      duration_ms: Number(trackMeta?.duration) > 0 ? Number(trackMeta.duration) : null,
+    }
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) }
   }
 })
 
