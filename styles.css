@@ -206,6 +206,28 @@ body { zoom: var(--ui-scale); }
 .g2 { width:400px; height:400px; background:color-mix(in srgb, var(--accent2) 22%, transparent); bottom:-100px; right:-80px; animation: gorb2 15s ease-in-out infinite alternate; }
 .g3 { width:350px; height:350px; background:color-mix(in srgb, #0ea5e9 18%, transparent); top:40%; left:40%; transform:translate(-50%,-50%); animation: gorb3 9s ease-in-out infinite alternate; }
 
+body.flow-boot-ready.flow-player-immersive:not(.flow-performance) .bg-layer {
+  background:
+    linear-gradient(125deg, #070712 0%, #120a1e 38%, #0a1024 68%, #06060c 100%);
+  background-size: 220% 220%;
+  animation: flowImmersiveBgShift 16s ease-in-out infinite alternate;
+}
+body.flow-boot-ready.flow-player-immersive:not(.flow-performance) .bg-gradient-orbs .gorb {
+  opacity: 0.52;
+  filter: blur(100px);
+}
+body.flow-boot-ready.flow-player-immersive:not(.flow-performance) .bg-cover-blur {
+  opacity: 0.42;
+  filter: blur(var(--bg-blur, 40px)) brightness(var(--bg-bright, 1));
+}
+body.flow-boot-ready.flow-player-immersive:not(.flow-performance) .bg-active-tint {
+  opacity: 0.34;
+}
+@keyframes flowImmersiveBgShift {
+  0% { background-position: 0% 40%; }
+  100% { background-position: 100% 60%; }
+}
+
 /* GPU-композитинг: декорации и ключевые surface (без массового will-change на каждую строку LRC) */
 .gorb,
 .bg-cover-blur {
@@ -440,13 +462,55 @@ body.audio-buffering .spin-icon {
   place-items: center;
   padding: 32px 24px;
   box-sizing: border-box;
-  background:
-    radial-gradient(120% 90% at 50% -12%, color-mix(in srgb, var(--accent2, #c4b5fd) 16%, transparent), transparent 52%),
-    radial-gradient(90% 70% at 80% 100%, color-mix(in srgb, var(--accent, #818cf8) 14%, transparent), transparent 55%),
-    linear-gradient(180deg, #111026 0%, #070712 46%, #040408 100%);
+  overflow: hidden;
+  background: #06060c;
   opacity: 1;
   visibility: visible;
-  transition: opacity 0.55s ease, visibility 0.55s ease;
+  transition: opacity 0.45s ease, visibility 0.45s ease;
+}
+.flow-boot-aurora {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(72px);
+  opacity: 0.72;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.flow-boot-aurora--a {
+  width: min(68vw, 520px);
+  height: min(68vw, 520px);
+  left: -12%;
+  top: -18%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent2, #c4b5fd) 70%, transparent) 0%, transparent 68%);
+  animation: flowBootAuroraA 9s ease-in-out infinite alternate;
+}
+.flow-boot-aurora--b {
+  width: min(62vw, 480px);
+  height: min(62vw, 480px);
+  right: -14%;
+  bottom: -22%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent, #818cf8) 65%, transparent) 0%, transparent 70%);
+  animation: flowBootAuroraB 11s ease-in-out infinite alternate;
+}
+.flow-boot-aurora--c {
+  width: min(48vw, 360px);
+  height: min(48vw, 360px);
+  left: 38%;
+  top: 42%;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.45) 0%, transparent 72%);
+  animation: flowBootAuroraC 7.5s ease-in-out infinite alternate;
+}
+@keyframes flowBootAuroraA {
+  0% { transform: translate(0, 0) scale(1); opacity: 0.55; }
+  100% { transform: translate(12%, 10%) scale(1.14); opacity: 0.82; }
+}
+@keyframes flowBootAuroraB {
+  0% { transform: translate(0, 0) scale(1.05); opacity: 0.5; }
+  100% { transform: translate(-10%, -8%) scale(1.18); opacity: 0.78; }
+}
+@keyframes flowBootAuroraC {
+  0% { transform: translate(-50%, -50%) scale(0.92); opacity: 0.42; }
+  100% { transform: translate(-42%, -58%) scale(1.12); opacity: 0.68; }
 }
 .flow-boot-splash.flow-boot-splash--out {
   opacity: 0;
@@ -454,11 +518,23 @@ body.audio-buffering .spin-icon {
   pointer-events: none;
 }
 .flow-boot-splash-inner {
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 22px;
+  gap: 18px;
   text-align: center;
+}
+.flow-boot-title {
+  margin: 0;
+  font-family: var(--font-title, 'Syne', sans-serif);
+  font-size: clamp(22px, 3.2vw, 30px);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
 }
 .flow-boot-logo {
   width: 112px;
@@ -3182,13 +3258,23 @@ body.visual-minimal .main-quick-playlist-meta span {
   grid-template-columns: minmax(320px, 44%) minmax(0, 1fr);
   gap: clamp(22px, 3.5vw, 40px);
   padding: clamp(22px, 3vw, 40px);
-  border-radius: 22px;
-  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,0.14);
   background:
-    radial-gradient(120% 90% at 8% -10%, color-mix(in srgb, var(--accent2) 16%, transparent), transparent 58%),
-    radial-gradient(90% 70% at 100% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 52%),
-    color-mix(in srgb, var(--glass-bg) 72%, rgba(8,10,18,0.55));
-  box-shadow: 0 28px 70px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.08);
+    radial-gradient(120% 90% at 8% -10%, color-mix(in srgb, var(--accent2) 22%, transparent), transparent 58%),
+    radial-gradient(90% 70% at 100% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 52%),
+    color-mix(in srgb, var(--glass-bg) 68%, rgba(8,10,18,0.48));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate, 160%));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate, 160%));
+  box-shadow:
+    0 32px 80px rgba(0,0,0,0.48),
+    0 0 0 1px rgba(255,255,255,0.04) inset,
+    inset 0 1px 0 rgba(255,255,255,0.1);
+  animation: flowPlayerCardGlow 10s ease-in-out infinite alternate;
+}
+@keyframes flowPlayerCardGlow {
+  0% { box-shadow: 0 28px 70px rgba(0,0,0,0.44), 0 0 48px color-mix(in srgb, var(--accent) 8%, transparent), inset 0 1px 0 rgba(255,255,255,0.08); }
+  100% { box-shadow: 0 34px 82px rgba(0,0,0,0.5), 0 0 64px color-mix(in srgb, var(--accent2) 12%, transparent), inset 0 1px 0 rgba(255,255,255,0.12); }
 }
 #page-home.media-queue-off .home-clone-cover-wrap {
   position: relative;

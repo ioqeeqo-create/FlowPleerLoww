@@ -4545,6 +4545,12 @@ function applyMediaPlayerBarVisibility() {
   document.body.classList.toggle('media-page-active', onMedia)
   document.body.classList.toggle('media-player-bar-hidden', hide)
   syncMediaPlayerBarModeUI()
+  syncImmersivePlayerBg()
+}
+
+function syncImmersivePlayerBg() {
+  const immersive = _activePageId === 'home' && !isMediaQueueEnabled()
+  document.body.classList.toggle('flow-player-immersive', immersive)
 }
 
 function applyMediaQueueLayout() {
@@ -4564,6 +4570,7 @@ function applyMediaQueueLayout() {
   syncHomeNxFooter()
   if (!on) initHomeNxMediaTools()
   if (on && typeof renderQueue === 'function') renderQueue()
+  syncImmersivePlayerBg()
   queueMicrotask(() => {
     try {
       if (on) alignHomeHeaderToPlay()

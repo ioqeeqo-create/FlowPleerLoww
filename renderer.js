@@ -4545,6 +4545,12 @@ function applyMediaPlayerBarVisibility() {
   document.body.classList.toggle('media-page-active', onMedia)
   document.body.classList.toggle('media-player-bar-hidden', hide)
   syncMediaPlayerBarModeUI()
+  syncImmersivePlayerBg()
+}
+
+function syncImmersivePlayerBg() {
+  const immersive = _activePageId === 'home' && !isMediaQueueEnabled()
+  document.body.classList.toggle('flow-player-immersive', immersive)
 }
 
 function applyMediaQueueLayout() {
@@ -4564,6 +4570,7 @@ function applyMediaQueueLayout() {
   syncHomeNxFooter()
   if (!on) initHomeNxMediaTools()
   if (on && typeof renderQueue === 'function') renderQueue()
+  syncImmersivePlayerBg()
   queueMicrotask(() => {
     try {
       if (on) alignHomeHeaderToPlay()
@@ -17422,7 +17429,14 @@ window.addEventListener('DOMContentLoaded', () => {
   let done = false
   let loadTs = 0
   let pendingTimer = null
-  const MIN_VISIBLE_MS = 3600
+  const MIN_VISIBLE_MS = 1200
+  try {
+    if (sessionStorage.getItem('flow_boot_seen') === '1') {
+      document.body.classList.add('flow-boot-ready')
+      document.getElementById('flow-boot-splash')?.remove()
+      return
+    }
+  } catch (_) {}
   const doDismiss = () => {
     if (done) return
     if (pendingTimer != null) {
@@ -17430,6 +17444,9 @@ window.addEventListener('DOMContentLoaded', () => {
       pendingTimer = null
     }
     done = true
+    try {
+      sessionStorage.setItem('flow_boot_seen', '1')
+    } catch (_) {}
     document.body.classList.add('flow-boot-ready')
     const el = document.getElementById('flow-boot-splash')
     if (!el) return

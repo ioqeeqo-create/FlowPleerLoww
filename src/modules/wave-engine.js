@@ -183,13 +183,28 @@
       return /(^|\s)mix(\s|$|[–-])/i.test(lowered) || /\bmix\b/i.test(lowered)
     }
 
+    function isMyWaveUploadFarmArtist(artist) {
+      const a = String(artist || '').trim().toLowerCase()
+      if (!a || a.length < 6) return false
+      if (/^pen\d+music$/i.test(a.replace(/\s+/g, ''))) return true
+      if (/^[a-z0-9]{4,18}music$/i.test(a.replace(/\s+/g, ''))) return true
+      if (/\b(?:music\s*label|indie\s*music|audio\s*library)\b/i.test(a)) return true
+      return false
+    }
+
     function isMyWaveSpamTitle(track) {
       const title = String(track?.title || '').trim().toLowerCase()
       const artist = String(track?.artist || '').trim().toLowerCase()
       const combo = `${artist} ${title}`.trim().toLowerCase()
       const words = title.split(/\s+/).filter(Boolean)
-      if (words.length >= 10) return true
-      if (title.length > 72) return true
+      if (isMyWaveUploadFarmArtist(artist)) return true
+      if (/#\w{3,}/i.test(title) || (title.match(/#/g) || []).length >= 1) return true
+      if (/\.(mp3|wav|flac|m4a)\b/i.test(title)) return true
+      if (/\bfollow\b/i.test(title) && words.length >= 4) return true
+      if (/\bindie\s+music\s+label\b/i.test(combo)) return true
+      if (/\bpen\d+music\b/i.test(combo)) return true
+      if (words.length >= 9) return true
+      if (title.length > 68) return true
       if ((title.match(/[–—-]/g) || []).length >= 2) return true
       if (/\bnew\s+(?:\w+\s+){0,3}songs?\b/i.test(combo)) return true
       if (/\b(?:latest|top|best|full)\s+(?:\w+\s+){0,2}(?:songs?|albums?)\b/i.test(combo)) return true
@@ -218,8 +233,12 @@
         'audio song',
         'song promotion',
         'audio library',
+        'indie music label',
+        'new age girl',
+        'just a little bit',
       ]
       if (spamPhrases.some((p) => combo.includes(p))) return true
+      if (/\b(?:maa|maabydarshan|bydarshan)\b/i.test(combo) && /#/.test(title)) return true
       return false
     }
 
