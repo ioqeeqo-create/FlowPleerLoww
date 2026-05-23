@@ -9081,9 +9081,16 @@ body.visual-floated:not(.layout-top-nav):not(.layout-bottom-nav):not(.visual-min
 .lyrics-content::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.08); border-radius:2px; }
 .lyrics-spacer { height:36vh; min-height:120px; pointer-events:none; }
 .lyrics-line {
-  font-size:15px; line-height:2.05; color:rgba(255,255,255,0.22); cursor:pointer; padding:5px 0; transition:all 0.25s;
+  font-size:15px; line-height:2.35; color:rgba(255,255,255,0.22); cursor:pointer; padding:8px 0;
+  transition:color 0.55s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1), filter 0.6s cubic-bezier(0.22, 1, 0.36, 1), transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
   opacity:0; filter:blur(5px); transform:translateY(7px);
 }
+.lyrics-line-main,
+.lyrics-line-adlib { white-space:nowrap; word-break:keep-all; overflow-wrap:normal; }
+.lyrics-line-adlib { margin-top:0.28em; font-size:0.82em; font-weight:600; opacity:0.88; color:rgba(255,255,255,0.42); }
+.lyrics-line.active .lyrics-line-adlib { color:rgba(255,255,255,0.72); }
+.lyrics-word { display:inline-block; white-space:nowrap; vertical-align:baseline; }
+.lyrics-word--adlib { font-weight:700; }
 .lyrics-line.is-visible { opacity:1; filter:blur(0px); transform:translateY(0); }
 .lyrics-line:hover { color:rgba(255,255,255,0.6); }
 .lyrics-line.active { color:#fff; font-size:16px; font-weight:600; transform:scale(1.02); transform-origin:left center; }
@@ -11700,19 +11707,44 @@ body.visual-yandex .yandex-ai-more {
 .pm-lyrics-content .lyrics-spacer { height:38vh; min-height:140px; pointer-events:none; }
 .pm-lyrics-content .lyrics-line {
   font-size:clamp(28px, calc(var(--lyrics-size) * 2), 72px);
-  line-height:1.38;
+  line-height:1.48;
   font-weight:800;
-  margin:18px 0;
+  margin:26px 0;
   color:rgba(255,255,255,0.18);
   white-space:normal;
-  overflow-wrap:anywhere;
-  word-break:break-word;
-  transition:color 260ms ease, transform 260ms ease, opacity 260ms ease, filter 260ms ease;
-  opacity:0;
-  filter:blur(8px);
-  transform:translateY(8px);
+  overflow-wrap:normal;
+  word-break:keep-all;
+  transition:color 0.58s cubic-bezier(0.22, 1, 0.36, 1), transform 0.58s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.58s cubic-bezier(0.22, 1, 0.36, 1), filter 0.62s cubic-bezier(0.22, 1, 0.36, 1);
+  opacity:1;
+  filter:blur(0);
+  transform:translateY(0);
+}
+.pm-lyrics-content .lyrics-line-main,
+.pm-lyrics-content .lyrics-line-adlib {
+  white-space:nowrap;
+  word-break:keep-all;
+  overflow-wrap:normal;
+}
+.pm-lyrics-content .lyrics-line-adlib {
+  margin-top:0.32em;
+  font-size:0.78em;
+  font-weight:700;
+  letter-spacing:0.02em;
+  color:rgba(255,255,255,0.38);
+}
+.pm-lyrics-content .lyrics-line.active .lyrics-line-adlib {
+  color:rgba(255,255,255,0.82);
+}
+.pm-lyrics-content .lyrics-word {
+  display:inline-block;
+  white-space:nowrap;
+  vertical-align:baseline;
 }
 .pm-lyrics-content .lyrics-line.is-visible { opacity:1; filter:blur(0px); transform:translateY(0); }
+.pm-lyrics-content .lyrics-line.past,
+.pm-lyrics-content .lyrics-line.future {
+  transition:color 0.55s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1), filter 0.6s cubic-bezier(0.22, 1, 0.36, 1), transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
 .pm-lyrics-content .lyrics-char,
 #lyrics-content .lyrics-char {
   color:rgba(255,255,255,0.2);
@@ -11746,8 +11778,8 @@ body.lyrics-mode-karaoke #lyrics-content .lyrics-line.active .lyrics-char:not(.k
 
 body.lyrics-mode-karaoke .pm-lyrics-content .lyrics-line,
 body.lyrics-mode-karaoke #lyrics-content .lyrics-line {
-  word-break:normal;
-  overflow-wrap:break-word;
+  word-break:keep-all;
+  overflow-wrap:normal;
 }
 .pm-lyrics-content .lyrics-line.active {
   color:#fff;
@@ -11757,8 +11789,9 @@ body.lyrics-mode-karaoke #lyrics-content .lyrics-line {
   animation:none;
 }
 .pm-lyrics-content .lyrics-line:not(.active) {
-  opacity:0.6;
-  filter:blur(0.2px);
+  opacity:0.52;
+  filter:blur(calc(var(--lyrics-blur, 4px) * 0.35));
+  transform:translateY(0) scale(0.98);
 }
 .pm-lyrics-content .lyrics-plain {
   font-size:28px;

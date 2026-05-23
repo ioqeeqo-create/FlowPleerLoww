@@ -4674,11 +4674,11 @@ const TRACK_NOW_PLAYING_SRC_LOGOS = {
 let _homeNxPlaybackRamp = null
 
 function applyPlaybackPitchForRate(rate) {
-  const slowed = Number(rate) < 1
   try {
-    if ('preservesPitch' in audio) audio.preservesPitch = !slowed
-    if ('mozPreservesPitch' in audio) audio.mozPreservesPitch = !slowed
-    if ('webkitPreservesPitch' in audio) audio.webkitPreservesPitch = !slowed
+    if ('preservesPitch' in audio) audio.preservesPitch = true
+    if ('mozPreservesPitch' in audio) audio.mozPreservesPitch = true
+    if ('webkitPreservesPitch' in audio) audio.webkitPreservesPitch = true
+    audio.defaultPlaybackRate = 1
   } catch (_) {}
 }
 
@@ -4692,6 +4692,7 @@ function rampAudioPlaybackRate(targetRate) {
   const from = Number(audio.playbackRate) || 1
   if (!audio?.src || Math.abs(from - r) < 0.02) {
     try {
+      audio.defaultPlaybackRate = 1
       audio.playbackRate = r
     } catch (_) {}
     return

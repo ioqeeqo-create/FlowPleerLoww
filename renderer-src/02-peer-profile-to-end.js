@@ -6736,6 +6736,12 @@ async function playTrackObj(track, opts = {}) {
   const tryStartPlayback = async (url) => {
     if (isStale()) throw new Error('stale playback request')
     setStage('Старт воспроизведения…')
+    try {
+      const pr = typeof getPlaybackRate === 'function' ? getPlaybackRate() : 1
+      audio.defaultPlaybackRate = 1
+      audio.playbackRate = pr
+      if (typeof applyPlaybackPitchForRate === 'function') applyPlaybackPitchForRate(pr)
+    } catch (_) {}
     audio.src = url
     try {
       if (typeof ensureTrackWaveformPeaks === 'function' && track) ensureTrackWaveformPeaks(track)
@@ -9282,8 +9288,72 @@ function getKaraokeLineDuration(idx) {
   return Math.min(gapDuration, readingDuration)
 }
 
+/** «(оу-оу)» и прочие хвосты в скобках — отдельные подстроки под основной строкой. */
+function parseLyricsLineParts(text) {
+  let main = String(text || '').trim()
+  const adlibs = []
+  if (!main) return { main: '', adlibs }
+  let guard = 0
+  while (guard < 8) {
+    const m = main.match(/\s*(\([^)]{1,80}\))\s*$/)
+    if (!m) break
+    adlibs.unshift(m[1].trim())
+    main = main.slice(0, m.index).trim()
+    guard += 1
+  }
+  if (!main && adlibs.length) return { main: adlibs.shift(), adlibs }
+  return { main, adlibs }
+}
+
+function appendLyricsLineContent(div, text, playbackMode) {
+  const { main, adlibs } = parseLyricsLineParts(text)
+  const karaoke = playbackMode === 'karaoke'
+  const appendWords = (rowEl, str, isAdlib) => {
+    const words = String(str || '').trim().split(/\s+/).filter(Boolean)
+    if (!words.length) return
+    words.forEach((word, wi) => {
+      if (wi > 0) {
+        const sp = document.createElement('span')
+        sp.className = 'lyrics-space'
+        sp.textContent = '\u00a0'
+        rowEl.appendChild(sp)
+      }
+      const wordSpan = document.createElement('span')
+      wordSpan.className = `lyrics-word${isAdlib ? ' lyrics-word--adlib' : ''}`
+      if (karaoke) {
+        ;[...word].forEach((ch, chIdx) => {
+          const span = document.createElement('span')
+          span.className = 'lyrics-char'
+          span.dataset.charIdx = String(chIdx)
+          span.textContent = ch === ' ' ? '\u00A0' : ch
+          wordSpan.appendChild(span)
+        })
+      } else {
+        wordSpan.textContent = word
+      }
+      rowEl.appendChild(wordSpan)
+    })
+  }
+  if (main) {
+    const mainRow = document.createElement('div')
+    mainRow.className = 'lyrics-line-main'
+    appendWords(mainRow, main, false)
+    div.appendChild(mainRow)
+  }
+  adlibs.forEach((adlib) => {
+    const adRow = document.createElement('div')
+    adRow.className = 'lyrics-line-adlib'
+    appendWords(adRow, adlib, true)
+    div.appendChild(adRow)
+  })
+}
+
 function observeLyricsVisibility(target) {
   if (!target || typeof IntersectionObserver !== 'function') return
+  if (target.id === 'pm-lyrics-content' || target.closest?.('.pm-lyrics-shell')) {
+    target.querySelectorAll('.lyrics-line').forEach((line) => line.classList.add('is-visible'))
+    return
+  }
   if (_lyricsObserver) _lyricsObserver.disconnect()
   _lyricsObserver = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
@@ -9500,6 +9570,7 @@ async function loadLyrics(track) {
     _lyricsData = parseLRC(res.synced)
     const renderSynced = (target) => {
       if (!target) return
+      const playbackMode = getLyricsVisualSettingsQuick().playbackMode
       target.innerHTML = ''
       const topSpacer = document.createElement('div')
       topSpacer.className = 'lyrics-spacer'
@@ -9509,13 +9580,7 @@ async function loadLyrics(track) {
         div.className = 'lyrics-line'
         div.dataset.idx = String(i)
         div.innerHTML = ''
-        ;[...String(line.text || '')].forEach((ch, chIdx) => {
-          const span = document.createElement('span')
-          span.className = 'lyrics-char'
-          span.dataset.charIdx = String(chIdx)
-          span.textContent = ch === ' ' ? '\u00A0' : ch
-          div.appendChild(span)
-        })
+        appendLyricsLineContent(div, line.text, playbackMode)
         div.onclick = () => {
           if (isRoomClientRestricted()) return showToast('Только хост управляет плеером', true)
           audio.currentTime = line.time
@@ -9581,8 +9646,9 @@ function syncLyrics(currentTime) {
   const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()
   const karaokeHighRate = cfg.playbackMode === 'karaoke' && idx >= 0
   const frameBudget = getLyricsFrameBudgetMs()
-  // При не-караоке не чаще одного экранного кадра (60/90/120/144 Гц), караоке — каждый RAF.
+  // При не-караоке не чаще одного экранного кадра; смена строки — всегда сразу (плавный переход в CSS).
   if (!idxChanged && now - _lyricsLastPaintAt < frameBudget && !karaokeHighRate) return
+  if (idxChanged) _lyricsLastPaintAt = 0
   _lyricsLastPaintAt = now
   if (idxChanged) {
     _lyricsActiveIdx = idx
@@ -9639,8 +9705,8 @@ function syncLyrics(currentTime) {
   if (idx >= 0) {
     const el = root.querySelector('.lyrics-line.active')
     if (el && idxChanged) {
-      const scrollBeh =
-        cfg.playbackMode === 'karaoke' ? 'auto' : cfg.scrollMode === 'smooth' ? 'smooth' : 'auto'
+      const inPm = Boolean(root.closest?.('.pm-lyrics-shell'))
+      const scrollBeh = inPm || cfg.scrollMode === 'smooth' ? 'smooth' : 'auto'
       try {
         el.scrollIntoView({ behavior: scrollBeh, block: 'center', inline: 'nearest' })
       } catch (_) {
