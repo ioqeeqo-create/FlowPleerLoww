@@ -2131,6 +2131,7 @@ function normalizeVkItems(items = []) {
     title: t.title || 'Без названия',
     artist: t.artist || '—',
     url: t.url,
+    duration: Number(t?.duration) > 0 ? Number(t.duration) : null,
     cover: t.album?.thumb?.photo_300 || null,
     bg: 'linear-gradient(135deg,#4680c2,#5b9bd5)',
     source: 'vk',
@@ -3912,17 +3913,14 @@ ipcMain.handle('server-search', async (e, { q, settings = {} }) => {
       if (r.status !== 200 || !r.body) continue
       const rows = Array.isArray(r.body) ? r.body : (r.body.collection || r.body.tracks || [])
       const tracks = rows.map((t) => {
-        let transcodingUrl = null
-        if (Array.isArray(t?.media?.transcodings) && t.media.transcodings.length > 0) {
-          const prog = t.media.transcodings.find((tr) => tr?.format?.protocol === 'progressive')
-          transcodingUrl = (prog || t.media.transcodings[0])?.url || null
-        }
+        const transcodingUrl = pickBestScTranscoding(t?.media?.transcodings)
         return {
           title: t?.title || 'Без названия',
           artist: t?.user?.username || '—',
           url: t?.stream_url ? `${t.stream_url}?client_id=${scClientId}` : null,
           scTranscoding: transcodingUrl,
           scClientId,
+          duration_ms: Number(t?.duration) > 0 ? Number(t.duration) : null,
           cover: t?.artwork_url ? String(t.artwork_url).replace('large', 't300x300') : null,
           bg: 'linear-gradient(135deg,#f26f23,#ff5500)',
           source: 'soundcloud',
@@ -4067,12 +4065,13 @@ ipcMain.handle('yandex-stream', async (e, { trackId, token }) => {
 
     const rows = Array.isArray(infoR.body.result) ? infoR.body.result : []
     const byBr = (a, b) => (Number(b.bitrateInKbps || 0) - Number(a.bitrateInKbps || 0))
+    const flac = rows.filter((s) => String(s.codec || '').toLowerCase() === 'flac').sort(byBr)
     const mp3 = rows.filter((s) => String(s.codec || '').toLowerCase() === 'mp3').sort(byBr)
     const aac = rows.filter((s) => {
       const c = String(s.codec || '').toLowerCase()
       return c === 'aac' || c === 'eac-aac' || c === 'he-aac' || c === 'aac-mp4'
     }).sort(byBr)
-    let sources = mp3.length ? mp3 : (aac.length ? aac : [...rows].sort(byBr))
+    let sources = flac.length ? flac : (mp3.length ? mp3 : (aac.length ? aac : [...rows].sort(byBr)))
     if (!sources.length) {
       return { ok: false, error: 'РЇРЅРґРµРєСЃ: РЅРµС‚ РґРѕСЃС‚СѓРїРЅС‹С… РїРѕС‚РѕРєРѕРІ (mp3/aac)' }
     }
@@ -4111,6 +4110,24 @@ ipcMain.handle('yandex-stream', async (e, { trackId, token }) => {
     return { ok: false, error: 'РЇРЅРґРµРєСЃ: ' + err.message }
   }
 })
+
+/** Лучший progressive/opus URL SoundCloud (максимальный preset). */
+function pickBestScTranscoding(transcodings) {
+  const list = Array.isArray(transcodings) ? transcodings.filter((tr) => tr?.url) : []
+  if (!list.length) return null
+  const scoreOf = (tr) => {
+    const preset = String(tr?.preset || tr?.quality || '')
+    const proto = String(tr?.format?.protocol || '').toLowerCase()
+    let score = proto === 'progressive' ? 80 : proto === 'hls' ? 10 : 20
+    const mp3 = preset.match(/mp3_(\d+)_(\d+)/i)
+    if (mp3) score += Number(mp3[1]) * 24 + Number(mp3[2])
+    const opus = preset.match(/opus_(\d+)_(\d+)/i)
+    if (opus) score += Number(opus[1]) * 18 + Number(opus[2])
+    if (/hq|high|256|320/i.test(preset)) score += 48
+    return score
+  }
+  return [...list].sort((a, b) => scoreOf(b) - scoreOf(a))[0]?.url || null
+}
 
 const YM_MY_WAVE_STATION = 'user:onyourwave'
 
@@ -4201,7 +4218,7 @@ ipcMain.handle('yandex-my-wave-fetch', async (e, { token, mode, queueTrackId, ra
     if (resetSession) {
       const settingsForm = new URLSearchParams()
       settingsForm.set('moodEnergy', moodEnergy)
-      settingsForm.set('diversity', 'default')
+      settingsForm.set('diversity', 'high')
       settingsForm.set('language', 'any')
       settingsForm.set('type', 'rotor')
       const setPath = `/rotor/station/${encodeURIComponent(YM_MY_WAVE_STATION)}/settings3`

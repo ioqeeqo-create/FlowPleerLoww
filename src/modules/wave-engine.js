@@ -201,6 +201,10 @@
       if (/\b(?:music\s+in\s+(?:the\s+)?description|in\s+(?:de\s+)?scription|description\s+music)\b/i.test(combo)) {
         return true
       }
+      if (/\bmusic\s*box\b/i.test(combo)) return true
+      if (/\boriginal\s+version\b/i.test(combo) || /\*[^*]{0,48}original[^*]{0,48}\*/i.test(title)) return true
+      if (/@[\w.-]{2,}/.test(title) && words.length >= 3) return true
+      if (/\balbum\s+just\s+for\s+you\b/i.test(combo)) return true
       if (/#\w{3,}/i.test(title) || (title.match(/#/g) || []).length >= 1) return true
       if (/\bfeat\.?\b/i.test(title) && words.length >= 6) return true
       if (/\.(mp3|wav|flac|m4a)\b/i.test(title)) return true
@@ -321,6 +325,32 @@
       try {
         onWaveEarlySkip && onWaveEarlySkip(safe)
       } catch (_) {}
+    }
+
+    function recordWaveDislike(track) {
+      const safe = sanitizeTrack(track)
+      if (!safe?.artist) return
+      const taste = loadWaveTasteMap()
+      bumpWaveNeg(taste.artistNeg, getMyWavePrimaryArtist(safe), 12)
+      getMyWaveTokens(safe).slice(0, 8).forEach((tok) => bumpWaveNeg(taste.tokenNeg, tok, 6))
+      saveWaveTasteMap(taste)
+      try {
+        onWaveEarlySkip && onWaveEarlySkip(safe)
+      } catch (_) {}
+    }
+
+    function isMyWaveRotorTrackOk(track) {
+      const safe = sanitizeTrack(track)
+      if (!safe?.title) return false
+      if (isMyWaveSpamTitle(safe)) return false
+      const sec = getNormalizedTrackDurationSec(safe)
+      if (sec != null && sec < WAVE_MY_WAVE_MIN_DURATION_SEC) return false
+      if (sec != null && sec > 900) return false
+      return true
+    }
+
+    function filterMyWavePlaybackTracks(tracks) {
+      return (tracks || []).map((t) => sanitizeTrack(t)).filter((t) => t?.title && !isMyWaveJunkTrack(t))
     }
 
     function recordWavePositiveListen(track) {
@@ -702,7 +732,7 @@
             if (!sig) continue
             if (packSeen.has(sig) || (key && packSeen.has(key))) continue
             if (selectedIds.has(key) || selectedSigs.has(sig)) continue
-            if (isMyWaveJunkTrack(track)) continue
+            if (!isMyWaveRotorTrackOk(track)) continue
             const sec = getNormalizedTrackDurationSec(track)
             if (sec != null && sec < WAVE_MY_WAVE_MIN_DURATION_SEC) continue
             if (key) packSeen.add(key)
@@ -803,7 +833,7 @@
         for (const { track, score } of ranked) {
           const sig = normalizeTrackSignature(track)
           if (excludeSig && sig === excludeSig) continue
-          if ((sourceMode === 'soundcloud' || sourceMode === 'vk') && score < 2) continue
+          if ((sourceMode === 'soundcloud' || sourceMode === 'vk') && score < 3) continue
           if ((sourceMode === 'soundcloud' || sourceMode === 'vk') && seedVariantBases.some((seed) => isTrackVariantOfSeed(track, seed))) continue
           const artist = getMyWavePrimaryArtist(track)
           const artistCount = selectedArtists.get(artist) || 0
@@ -823,7 +853,10 @@
       findMyWaveRecommendations,
       getMyWaveSeedTracks,
       recordWaveEarlySkip,
+      recordWaveDislike,
       recordWavePositiveListen,
+      filterMyWavePlaybackTracks,
+      isMyWaveJunkTrack,
     }
   }
 

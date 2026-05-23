@@ -1,6 +1,8 @@
 (() => {
   function createPlayerAudio(onError) {
     const audio = new Audio()
+    audio.preload = 'auto'
+    audio.preservesPitch = true
     audio.volume = 0.8
     audio.onerror = () => {
       if (typeof onError === 'function') onError(audio)
@@ -37,11 +39,11 @@
       }
     }
     return {
-      // "clean": мягкий low-end и подчистка середины/верха без сильной компрессии.
-      lowShelfGain: 0.9,
-      presenceGain: 2.1,
-      compressor: { threshold: -24, knee: 20, ratio: 3.1, attack: 0.004, release: 0.2 },
-      outputGain: 1.03,
+      // "clean": прозрачный профиль — минимум окраски, чуть воздуха в верхах.
+      lowShelfGain: 0.55,
+      presenceGain: 1.35,
+      compressor: { threshold: -30, knee: 26, ratio: 2.1, attack: 0.003, release: 0.28 },
+      outputGain: 1.0,
     }
   }
 

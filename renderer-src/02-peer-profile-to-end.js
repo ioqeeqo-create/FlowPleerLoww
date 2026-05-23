@@ -187,6 +187,37 @@ function getMyWaveSource() {
   }
 }
 
+function myWaveSourceLabel() {
+  const s = getMyWaveSource()
+  if (s === 'yandex') return 'Яндекс Музыка'
+  if (s === 'vk') return 'ВКонтакте'
+  return 'SoundCloud'
+}
+
+function filterMyWaveQueueTracks(tracks) {
+  const api = waveEngine()
+  if (api?.filterMyWavePlaybackTracks) return api.filterMyWavePlaybackTracks(tracks)
+  return (tracks || []).map(sanitizeTrack).filter((t) => t?.title)
+}
+
+function recordWaveDislike(track) {
+  waveEngine()?.recordWaveDislike?.(track) || recordWaveEarlySkip(track)
+}
+
+function advanceMyWavePastJunkTracks() {
+  if (queueScope !== 'myWave' || getMyWaveSource() === 'yandex') return queueIndex < queue.length
+  const filter = filterMyWaveQueueTracks
+  let guard = 0
+  while (queueIndex < queue.length && guard < queue.length + 2) {
+    const row = sanitizeTrack(queue[queueIndex])
+    if (filter([row]).length) return true
+    recordWaveEarlySkip(row)
+    queue.splice(queueIndex, 1)
+    guard++
+  }
+  return queueIndex < queue.length
+}
+
 function ensureYandexMyWaveSourceForMood() {
   const tok = String(getSettings()?.yandexToken || '').trim()
   if (!tok) return false
@@ -238,16 +269,13 @@ function syncInlineTrackSourcePill(track) {
 }
 
 function updateYandexWaveDislikeButtonsVisible() {
-  const show = Boolean(
-    queueScope === 'myWave' &&
-    getMyWaveSource() === 'yandex' &&
-    currentTrack &&
-    String(currentTrack.source || '').toLowerCase() === 'yandex' &&
-    Boolean(currentTrack?.yandexRotor?.batchId)
-  )
+  const show = Boolean(queueScope === 'myWave' && currentTrack?.title)
+  const ym = getMyWaveSource() === 'yandex'
   ;['player-wave-dislike-btn', 'pm-wave-dislike-btn', 'pm-dislike-btn', 'pm-vol-dislike-btn', 'home-wave-dislike-btn', 'home-nx-vol-dislike-btn', 'home-nx-dislike-btn'].forEach((id) => {
     const b = document.getElementById(id)
-    if (b) b.classList.toggle('hidden', !show)
+    if (!b) return
+    b.classList.toggle('hidden', !show)
+    b.title = ym ? 'Не нравится (синхрон с Яндексом)' : 'Не нравится — волна запомнит и пропустит'
   })
 }
 
@@ -296,21 +324,44 @@ function toggleYandexWaveMoodDockPanel(force) {
   })
 }
 
-async function dislikeCurrentYandexWaveTrack() {
+async function dislikeCurrentWaveTrack() {
   const t = sanitizeTrack(currentTrack || {})
-  if (!t?.id || String(t.source || '').toLowerCase() !== 'yandex') return
-  if (!t?.yandexRotor?.batchId) return
-  if (queueScope !== 'myWave' || getMyWaveSource() !== 'yandex') return
-  const tok = String(getSettings()?.yandexToken || '').trim()
-  if (!tok || !window.api?.yandexTrackDislike) return showToast('Нужен токен Яндекса', true)
-  const r = await window.api.yandexTrackDislike({ token: tok, trackId: t.id }).catch(() => ({ ok: false }))
-  if (r?.ok) showToast('Не рекомендовать: синхрон с Яндексом')
-  else showToast('Яндекс: не удалось отметить трек', true)
-  recordWaveEarlySkip(t)
+  if (!t?.title || queueScope !== 'myWave') return
+  const src = String(t.source || '').toLowerCase()
+  const ymWave = getMyWaveSource() === 'yandex' && src === 'yandex'
+  if (ymWave && t?.yandexRotor?.batchId) {
+    await sendYandexRotorLeaveFeedback(t, false)
+    const tok = String(getSettings()?.yandexToken || '').trim()
+    if (tok && window.api?.yandexTrackDislike) {
+      const r = await window.api.yandexTrackDislike({ token: tok, trackId: t.id }).catch(() => ({ ok: false }))
+      if (r?.ok) showToast('Не рекомендовать: синхрон с Яндексом')
+      else showToast('Яндекс: не удалось отметить в аккаунте', true)
+    } else {
+      showToast('Нужен токен Яндекса для синхронизации дизлайка', true)
+    }
+  } else {
+    showToast('Волна запомнила: этот трек и похожие реже попадут в подборку')
+  }
+  recordWaveDislike(t)
+  const idx = queueIndex
+  if (idx >= 0 && idx < queue.length) {
+    queue.splice(idx, 1)
+    if (queueIndex >= queue.length) queueIndex = Math.max(0, queue.length - 1)
+    _myWaveRenderedTracks = queue.slice()
+    renderQueue()
+  }
+  if (!queue.length) {
+    await maybePreloadMyWave(true)
+  }
+  if (queue.length && queue[queueIndex]) {
+    await playTrackObj(queue[queueIndex])
+    return
+  }
   nextTrack()
 }
 window.toggleYandexWaveMoodDockPanel = toggleYandexWaveMoodDockPanel
-window.dislikeCurrentYandexWaveTrack = dislikeCurrentYandexWaveTrack
+window.dislikeCurrentWaveTrack = dislikeCurrentWaveTrack
+window.dislikeCurrentYandexWaveTrack = dislikeCurrentWaveTrack
 window.flowWaveSourceBadgeLine = flowWaveSourceBadgeLine
 window.flowTrackSourceBadgeHtml = flowTrackSourceBadgeHtml
 
@@ -725,7 +776,7 @@ async function maybePreloadMyWave(force = false) {
     }
     const waveAsk = getMyWaveSource() === 'yandex' ? 5 : 10
     const additions = await findMyWaveRecommendations(waveAsk, getMyWaveMode())
-    let fresh = dedupeWithExisting(additions)
+    let fresh = filterMyWaveQueueTracks(dedupeWithExisting(additions))
     if (!fresh.length && getMyWaveSource() === 'yandex' && currentTrack?.yandexRotor?.batchId) {
       await sendYandexRotorLeaveFeedback(currentTrack, false)
       const retry = await findMyWaveRecommendations(
@@ -733,7 +784,7 @@ async function maybePreloadMyWave(force = false) {
         getMyWaveMode(),
         force ? { resetSession: true } : undefined,
       )
-      fresh = dedupeWithExisting(retry)
+      fresh = filterMyWaveQueueTracks(dedupeWithExisting(retry))
     }
     if (fresh.length) {
       if (getMyWaveSource() === 'yandex') {
@@ -806,7 +857,10 @@ function myWaveFineLinesLayerHtml() {
 
 async function startMyWave() {
   if (_myWaveBuilding) return
-  setMyWaveSource('soundcloud')
+  const source = getMyWaveSource()
+  if (source === 'yandex' && !String(getSettings()?.yandexToken || '').trim()) {
+    return showToast('Для волны Яндекса укажи токен в настройках', true)
+  }
   const seedTracks = getMyWaveSeedTracks()
   if (seedTracks.length < 1) {
     return showToast('Послушай или лайкни треки, чтобы волна поняла вкус', true)
@@ -817,7 +871,7 @@ async function startMyWave() {
   _waveEngineApi = null
   _myWaveBuilding = true
   renderMyWave()
-  showToast('Моя волна на SoundCloud подбирает треки…')
+  showToast(`Моя волна (${myWaveSourceLabel()}) подбирает треки…`)
   try {
     const waveAsk = getMyWaveSource() === 'yandex' ? 5 : (WE?.MY_WAVE_MIN_TRACKS ?? 10)
     const ymReset = getMyWaveSource() === 'yandex'
@@ -846,16 +900,17 @@ async function startMyWave() {
         unique.push(track)
       })
     }
-    if (!unique.length) return showToast('Волна пока не нашла новые треки. Попробуй другой режим или послушай еще музыку', true)
-    _myWaveRenderedTracks = unique.slice()
-    queue = unique.slice()
+    const filtered = filterMyWaveQueueTracks(unique)
+    if (!filtered.length) return showToast('Волна пока не нашла новые треки. Попробуй другой режим или послушай еще музыку', true)
+    _myWaveRenderedTracks = filtered.slice()
+    queue = filtered.slice()
     queueIndex = 0
     queueScope = 'myWave'
-    if (getMyWaveSource() === 'yandex') rememberYandexWaveTracks(unique)
+    if (getMyWaveSource() === 'yandex') rememberYandexWaveTracks(filtered)
     showToast(
-      getMyWaveSource() === 'yandex' && unique.length <= 1
+      getMyWaveSource() === 'yandex' && filtered.length <= 1
         ? 'Моя волна: трек из Яндекса'
-        : `Моя волна собрала ${unique.length} новых треков`,
+        : `Моя волна собрала ${filtered.length} новых треков`,
     )
     await playTrackObj(queue[0])
   } catch (err) {
@@ -1904,11 +1959,13 @@ function trackCardCtxSimilar() {
 async function startMyWaveFromTrack(track) {
   const seed = sanitizeTrack(track)
   if (!seed?.title) return showToast('Нет трека', true)
-  setMyWaveSource('soundcloud')
+  if (getMyWaveSource() === 'yandex' && !String(getSettings()?.yandexToken || '').trim()) {
+    return showToast('Для волны Яндекса укажи токен в настройках', true)
+  }
   if (_myWaveBuilding) return
   _myWaveBuilding = true
   renderMyWave()
-  showToast('Волна по треку: подбираю похожие на SoundCloud…')
+  showToast(`Волна по треку (${myWaveSourceLabel()})…`)
   try {
     _myWaveSeenKeys = new Set()
     const tracks = await findMyWaveRecommendations(12, getMyWaveMode(), {
@@ -1922,12 +1979,13 @@ async function startMyWaveFromTrack(track) {
       _myWaveSeenKeys.add(key)
       return true
     })
-    if (!unique.length) return showToast('Не нашёл похожих треков', true)
-    _myWaveRenderedTracks = unique.slice()
-    queue = unique.slice()
+    const filtered = filterMyWaveQueueTracks(unique)
+    if (!filtered.length) return showToast('Не нашёл похожих треков', true)
+    _myWaveRenderedTracks = filtered.slice()
+    queue = filtered.slice()
     queueIndex = 0
     queueScope = 'myWave'
-    showToast(`Волна: ${unique.length} треков`)
+    showToast(`Волна: ${filtered.length} треков`)
     await playTrackObj(queue[0])
   } catch (err) {
     showToast(`Волна: ${sanitizeDisplayText(err?.message || err)}`, true)
@@ -1943,11 +2001,13 @@ async function startMyWaveFromPlaylist(playlistIndex) {
   if (!pl) return showToast('Плейлист не найден', true)
   const seeds = (pl.tracks || []).map(sanitizeTrack).filter((t) => t?.title).slice(0, 16)
   if (!seeds.length) return showToast('Плейлист пуст', true)
-  setMyWaveSource('soundcloud')
+  if (getMyWaveSource() === 'yandex' && !String(getSettings()?.yandexToken || '').trim()) {
+    return showToast('Для волны Яндекса укажи токен в настройках', true)
+  }
   if (_myWaveBuilding) return
   _myWaveBuilding = true
   renderMyWave()
-  showToast(`Волна по плейлисту «${pl.name || 'плейлист'}»…`)
+  showToast(`Волна по плейлисту «${pl.name || 'плейлист'}» (${myWaveSourceLabel()})…`)
   try {
     _myWaveSeenKeys = new Set()
     const tracks = await findMyWaveRecommendations(14, getMyWaveMode(), {
@@ -1960,12 +2020,13 @@ async function startMyWaveFromPlaylist(playlistIndex) {
       _myWaveSeenKeys.add(key)
       return true
     })
-    if (!unique.length) return showToast('Не нашёл треки для волны', true)
-    _myWaveRenderedTracks = unique.slice()
-    queue = unique.slice()
+    const filtered = filterMyWaveQueueTracks(unique)
+    if (!filtered.length) return showToast('Не нашёл треки для волны', true)
+    _myWaveRenderedTracks = filtered.slice()
+    queue = filtered.slice()
     queueIndex = 0
     queueScope = 'myWave'
-    showToast(`Волна: ${unique.length} треков`)
+    showToast(`Волна: ${filtered.length} треков`)
     await playTrackObj(queue[0])
   } catch (err) {
     showToast(`Волна: ${sanitizeDisplayText(err?.message || err)}`, true)
@@ -5359,7 +5420,12 @@ function syncHomeCloneUI() {
     artist.removeAttribute('data-flow-text')
   }
   if (currentTrack) {
-    animateFlowMediaText(title, currentTrack.title || 'Ничего не играет', 'letter')
+    const fullTitle = currentTrack.title || 'Ничего не играет'
+    const displayTitle = smartCleaning.smartCropDisplayTitle
+      ? smartCleaning.smartCropDisplayTitle(fullTitle)
+      : fullTitle
+    title.title = fullTitle
+    animateFlowMediaText(title, displayTitle, 'letter')
     animateFlowMediaText(artist, currentTrack.artist || '—', 'word')
     applyCoverArt(cover, getEffectiveCoverUrl(currentTrack), currentTrack.bg || 'linear-gradient(135deg,#7c3aed,#a855f7)')
   } else {
@@ -7193,7 +7259,8 @@ async function nextTrack(autoEnded = false) {
   }
   if (queueIndex < queue.length - 1) {
     queueIndex++
-    playTrackObj(queue[queueIndex])
+    if (queueScope === 'myWave') advanceMyWavePastJunkTracks()
+    if (queue[queueIndex]) playTrackObj(queue[queueIndex])
     maybePreloadMyWave(false)
     return
   }
@@ -7201,7 +7268,9 @@ async function nextTrack(autoEnded = false) {
     await maybePreloadMyWave(true)
     if (queueIndex < queue.length - 1) {
       queueIndex++
-      await playTrackObj(queue[queueIndex])
+      if (advanceMyWavePastJunkTracks() && queue[queueIndex]) {
+        await playTrackObj(queue[queueIndex])
+      }
       return
     }
     showToast('Волна ищет продолжение...')
@@ -7800,16 +7869,27 @@ async function searchSoundCloud(q, manualClientId) {
   return mapScTracks(result.tracks, clientId)
 }
 
+function pickBestScTranscodingLocal(transcodings) {
+  const list = Array.isArray(transcodings) ? transcodings.filter((tr) => tr?.url) : []
+  if (!list.length) return null
+  const scoreOf = (tr) => {
+    const preset = String(tr?.preset || tr?.quality || '')
+    const proto = String(tr?.format?.protocol || '').toLowerCase()
+    let score = proto === 'progressive' ? 80 : 15
+    const mp3 = preset.match(/mp3_(\d+)_(\d+)/i)
+    if (mp3) score += Number(mp3[1]) * 24 + Number(mp3[2])
+    const opus = preset.match(/opus_(\d+)_(\d+)/i)
+    if (opus) score += Number(opus[1]) * 18 + Number(opus[2])
+    return score
+  }
+  return [...list].sort((a, b) => scoreOf(b) - scoreOf(a))[0]?.url || null
+}
+
 async function mapScTracks(tracks, clientId) {
   const results = []
   for (const t of tracks) {
     if (!t.streamable) continue
-    let transcodingUrl = null
-    if (t.media?.transcodings?.length > 0) {
-      const prog = t.media.transcodings.find(tr => tr.format?.protocol === 'progressive')
-      const tr = prog || t.media.transcodings[0]
-      if (tr) transcodingUrl = tr.url
-    }
+    const transcodingUrl = pickBestScTranscodingLocal(t.media?.transcodings)
     results.push({
       title: t.title, artist: t.user?.username || '—',
       url: t.stream_url ? `${t.stream_url}?client_id=${clientId}` : null,

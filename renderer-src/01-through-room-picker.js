@@ -3948,7 +3948,12 @@ function syncPlayerModeUI() {
   const orb2 = v.orb2Color || v.accent2 || '#9ca3af'
 
   if (t) {
-    pmTitle.textContent  = t.title || 'РќРµРёР·РІРµСЃС‚РЅРѕ'
+    const fullTitle = t.title || 'Неизвестно'
+    const displayTitle = smartCleaning.smartCropDisplayTitle
+      ? smartCleaning.smartCropDisplayTitle(fullTitle)
+      : fullTitle
+    pmTitle.textContent = displayTitle
+    pmTitle.title = fullTitle
     pmArtist.textContent = sanitizeDisplayText(t.artist || '—')
     const pmSrc = document.getElementById('pm-source-badge')
     if (pmSrc && typeof window.flowTrackSourceBadgeHtml === 'function') {
