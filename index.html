@@ -6,7 +6,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
   <!-- bump ?v= when profile/CSS/JS layout changes so Electron reloads assets -->
-  <link rel="stylesheet" href="styles.css?v=090ced0d355d-mphj4fqr">
+  <link rel="stylesheet" href="styles.css?v=13cf5a12148d-mphlfl92">
 </head>
 <body>
 
@@ -706,7 +706,7 @@
             </div>
             <div class="vs-row">
               <label class="vs-label">Полноэкранный режим <span class="vs-val" id="vs-scale-fullscreen-val">100%</span></label>
-              <input type="range" min="75" max="140" value="100" class="vs-slider" id="vs-scale-fullscreen" oninput="applyVisualSettings()">
+              <input type="range" min="75" max="140" value="95" class="vs-slider" id="vs-scale-fullscreen" oninput="applyVisualSettings()">
             </div>
             </div>
           </div>
@@ -1000,6 +1000,12 @@
               </div>
               <div class="auth-source-drawer" data-auth-drawer="yandex" hidden>
                 <div class="auth-source-drawer-inner">
+                  <div class="auth-token-inline-guide" role="region" aria-label="Как получить токен Яндекс Музыки">
+                    <p class="auth-token-guide-title">Как получить токен</p>
+                    <p><strong>Шаг 1.</strong> Установи расширение <button type="button" class="auth-token-link" onclick="openUrl('https://chromewebstore.google.com/detail/yandex-music-token/lcbdfebonclmclononpgejndiahonidm')">Yandex Music Token</button> в Chrome.</p>
+                    <p><strong>Шаг 2.</strong> Открой <button type="button" class="auth-token-link" onclick="openUrl('https://music.yandex.ru')">music.yandex.ru</button> и войди в аккаунт. Нажми иконку расширения → <strong>Copy token</strong>.</p>
+                    <p><strong>Шаг 3.</strong> Вставь токен ниже и нажми сохранить.</p>
+                  </div>
                   <div class="token-field-wrap">
                     <input id="ym-token-val-compact" type="password" class="token-field" placeholder="Вставь access_token или полный redirect URL..." oninput="syncYmTokenFieldsFromCompact()">
                     <button class="token-field-eye" type="button" onclick="toggleToken('ym-token-val-compact')" title="Показать/скрыть">
@@ -1017,6 +1023,14 @@
               </div>
               <div class="auth-source-drawer" data-auth-drawer="vk" hidden>
                 <div class="auth-source-drawer-inner">
+                  <div class="auth-token-inline-guide" role="region" aria-label="Как получить токен VK">
+                    <p class="auth-token-guide-title">Как получить токен</p>
+                    <p><strong>Шаг 1.</strong> Открой <button type="button" class="auth-token-link" onclick="openUrl('https://vkhost.github.io/')">vkhost.github.io</button> в браузере.</p>
+                    <p><strong>Шаг 2.</strong> Выбери приложение <strong>Маруся</strong> (полный доступ к аудио).</p>
+                    <p><strong>Шаг 3.</strong> Включи право <strong>Аудио</strong>, войди в VK и нажми <strong>Разрешить</strong>.</p>
+                    <p><strong>Шаг 4.</strong> Скопируй из адресной строки часть после <code>access_token=</code> до <code>&amp;</code>.</p>
+                    <p><strong>Шаг 5.</strong> Вставь токен ниже и сохрани.</p>
+                  </div>
                   <div class="token-field-wrap">
                     <input id="vk-token-val-compact" type="password" class="token-field" placeholder="Вставь VK токен..." oninput="syncVkTokenFieldsFromCompact()">
                     <button class="token-field-eye" type="button" onclick="toggleToken('vk-token-val-compact')" title="Показать/скрыть">
@@ -1633,7 +1647,7 @@
     <div class="flow-game-sleep-title">Sleep mode</div>
     <div class="flow-game-sleep-sub">Только воспроизведение · верни Nexory на экран</div>
   </div>
-  <script src="renderer.js?v=8795d3423ef7-mphj4fqr"></script>
+  <script src="renderer.js?v=6e0bf97f7d55-mphlfl92"></script>
 </body>
 </html>
 

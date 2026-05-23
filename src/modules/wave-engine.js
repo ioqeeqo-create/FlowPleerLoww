@@ -63,8 +63,16 @@
   const WAVE_TASTE_MAX_ART = 22
   const WAVE_TASTE_MAX_TOK = 16
   const WAVE_MY_WAVE_MIN_DURATION_SEC = 75
-  const WAVE_SC_MAX_DURATION_SEC = 480
-  const WAVE_SC_SOFT_MAX_DURATION_SEC = 360
+  const WAVE_SC_MAX_DURATION_SEC = 600
+  const WAVE_SC_SOFT_MAX_DURATION_SEC = 300
+  const STREAM_WAVE_QUERY_SUFFIX = {
+    default: ['official', 'music', 'original', 'audio'],
+    sad: ['sad', 'melancholic', 'slowed'],
+    happy: ['happy', 'upbeat', 'dance'],
+    energetic: ['energetic', 'phonk', 'bass'],
+    calm: ['chill', 'ambient', 'lofi'],
+    romantic: ['love', 'romantic', 'soft'],
+  }
 
   /** @typedef {ReturnType<typeof createWaveEngine>} WaveEngineApi */
 
@@ -156,15 +164,83 @@
     }
 
     function getNormalizedTrackDurationSec(track) {
-      const raw = Number(track?.duration_ms ?? track?.duration ?? track?.durationSec)
-      if (!Number.isFinite(raw) || raw <= 0) return null
       const src = String(track?.source || '').toLowerCase()
+      const ms = Number(track?.duration_ms)
+      if (Number.isFinite(ms) && ms > 0) return ms / 1000
+      const raw = Number(track?.duration ?? track?.durationSec)
+      if (!Number.isFinite(raw) || raw <= 0) return null
+      if (src === 'soundcloud') return raw >= 1000 ? raw / 1000 : raw
       if (src === 'youtube' || src === 'vk' || src === 'yandex') {
         return raw > 7200 ? raw / 1000 : raw
       }
       if (raw >= 30000) return raw / 1000
       if (raw < 600) return raw
       return raw / 1000
+    }
+
+    function titleHasStandaloneMix(text) {
+      const lowered = String(text || '').toLowerCase().replace(/\bremix\b/g, '')
+      return /(^|\s)mix(\s|$|[–-])/i.test(lowered) || /\bmix\b/i.test(lowered)
+    }
+
+    function isMyWaveSpamTitle(track) {
+      const title = String(track?.title || '').trim().toLowerCase()
+      const artist = String(track?.artist || '').trim().toLowerCase()
+      const combo = `${artist} ${title}`.trim().toLowerCase()
+      const words = title.split(/\s+/).filter(Boolean)
+      if (words.length >= 10) return true
+      if (title.length > 72) return true
+      if ((title.match(/[–—-]/g) || []).length >= 2) return true
+      if (/\bnew\s+(?:\w+\s+){0,3}songs?\b/i.test(combo)) return true
+      if (/\b(?:latest|top|best|full)\s+(?:\w+\s+){0,2}(?:songs?|albums?)\b/i.test(combo)) return true
+      if (/\b(?:punjabi|hindi|bollywood|telugu|tamil|bengali|marathi)\s+songs?\b/i.test(combo) && words.length >= 6) {
+        return true
+      }
+      if (/\b(?:gamechangerz|true\s+roots|song\s+promotion|free\s+download|full\s+song|status\s+video|whatsapp\s+status)\b/i.test(combo)) {
+        return true
+      }
+      if (/\[[^\]]{0,48}(?:release|records?|label|exclusive|promo|upload|premiere)\]/i.test(title)) return true
+      if (/\b(?:records?|label|music\s+label|releases?)\b/i.test(artist) && /\[[^\]]+\]/.test(title)) return true
+      if (/\b(?:audio\s*library|free\s*music|royalty\s*free|nocopyright|no\s*copyright)\b/i.test(combo)) return true
+      if (/\blabel\s*\[/i.test(combo) || /\b(?:music\s+)?label\b/i.test(artist) && /\b(?:fade|away|release|library)\b/i.test(title)) {
+        if (words.length >= 4 || title.length > 36) return true
+      }
+      const spamPhrases = [
+        'new punjabi songs',
+        'new hindi songs',
+        'punjabi songs',
+        'hindi songs',
+        'future bass release',
+        'bass release',
+        'official video',
+        'official audio',
+        'full song',
+        'audio song',
+        'song promotion',
+        'audio library',
+      ]
+      if (spamPhrases.some((p) => combo.includes(p))) return true
+      return false
+    }
+
+    function isMyWaveCompilationTrack(track) {
+      const title = String(track?.title || '').trim().toLowerCase()
+      const combo = `${track?.artist || ''} ${title}`.trim().toLowerCase()
+      if (!title) return false
+      if (/\b(artists?\s+like|with\s+artists?\s+like)\b/i.test(combo)) return true
+      if (/\b(hardgroove|hardhouse|afrohouse|afro\s*house|hard\s*groove)\b/i.test(combo)) return true
+      if (/\b(dj\s+set|live\s+set|radio\s+set|podcast|megamix|mega\s*mix)\b/i.test(combo)) return true
+      if (/\bset\s*\(/i.test(title) || /\(\s*with\s+artists/i.test(title)) return true
+      if (/\b(trance|house|techno)\s*[–-]\s*set\b/i.test(combo)) return true
+      if (/\bmix\s+of\s+popular\b/i.test(combo)) return true
+      if (/\b(popular\s+songs?|trending\s+music|new\s+songs?\s+list|party\s+club)\b/i.test(combo)) return true
+      if (/\bset\b/i.test(title) && !/\b(reset|offset|sunset|closet|asset|mindset)\b/i.test(title)) return true
+      if (titleHasStandaloneMix(title)) {
+        const sec = getNormalizedTrackDurationSec(track)
+        if (sec == null || sec > WAVE_SC_SOFT_MAX_DURATION_SEC) return true
+        if (title.split(/\s+/).filter(Boolean).length <= 6) return true
+      }
+      return false
     }
 
     function loadWaveTasteMap() {
@@ -351,7 +427,7 @@
       return pen
     }
 
-    function scoreMyWaveTrack(track, profile, mode, resultIndex = 0) {
+    function scoreMyWaveTrack(track, profile, mode, resultIndex = 0, waveSource = '') {
       const source = String(track.source || '').trim().toLowerCase()
       const artists = getMyWaveArtistNames(track)
       let score = 0
@@ -359,11 +435,20 @@
       score += Math.min(artistMatch, 18) * 0.75
       score += (profile.sources.get(source) || 0) * 0.8
       getMyWaveTokens(track).forEach((token) => { score += Math.min(profile.tokens.get(token) || 0, 12) })
-      score += getMyWaveMoodScore(track, mode)
-      score += getMyWaveTrendScore(track, resultIndex)
-      score += getMyWaveVibeScore(track, mode)
-      score -= getMyWaveQualityPenalty(track, mode)
-      score += getMyWaveOfficialBonus(track)
+      const streamPick = waveSource === 'soundcloud' || waveSource === 'vk'
+      if (streamPick) {
+        if (isMyWaveCompilationTrack(track)) score -= 140
+        if (isMyWaveSpamTitle(track)) score -= 120
+        score += getMyWaveMoodScore(track, mode) * 0.35
+        score += getMyWaveOfficialBonus(track)
+        score -= getMyWaveQualityPenalty(track, mode)
+      } else {
+        score += getMyWaveMoodScore(track, mode)
+        score += getMyWaveTrendScore(track, resultIndex)
+        score += getMyWaveVibeScore(track, mode)
+        score -= getMyWaveQualityPenalty(track, mode)
+        score += getMyWaveOfficialBonus(track)
+      }
       score = applyWaveTasteToScore(track, score)
       return score
     }
@@ -386,13 +471,15 @@
       const artist = String(track?.artist || '').trim().toLowerCase()
       const combo = `${artist} ${title}`.trim()
       if (!title || title.length < 2) return true
+      if (isMyWaveCompilationTrack(track)) return true
+      if (isMyWaveSpamTitle(track)) return true
       if (/^(song|track|audio|video|music|трек|песня)\s*#?\s*\d{1,4}$/i.test(title)) return true
       if (/^(tik\s*tok|тик\s*ток|tt)\s*#?\s*\d*$/i.test(title)) return true
       if (/^original\s*sound\s*#?\s*\d*$/i.test(title)) return true
       if (/^(без\s*названия|unknown|untitled|audio\s*\d+)$/i.test(title)) return true
       if (title.length <= 12 && /\b(tiktok|tik\s*tok|тикток|reels|shorts)\b/i.test(combo)) return true
       if (!artist && title.length < 8 && /\d/.test(title)) return true
-      if (title.length > 88 || title.split(/\s+/).filter(Boolean).length > 14) return true
+      if (title.length > 76 || title.split(/\s+/).filter(Boolean).length > 12) return true
       if (
         /\b(viral|top\s*hits?|playlist|compilation|full\s*album|best\s*of|hour\s*mix|hours?\s*mix|non\s*stop|nonstop|terbaru|tiktok|spotify|indonesia|lagu\s*pop|сборник|плейлист|хиты\s*\d|mix\s*\d{4}|dj\s*mix|live\s*set|trending|new\s*songs?|song\s*list|charts?|party\s*club|dance\s*mix|bootleg|remixes?\s*of|various\s*artists?)\b/i.test(
           combo,
@@ -511,9 +598,8 @@
       return false
     }
 
-    function buildSoundCloudWaveQueries(seedTracks, mode, profile) {
-      const cfg = MY_WAVE_MODES[mode] || MY_WAVE_MODES.default
-      const moodTerms = (cfg.queryTerms || []).slice(0, 4)
+    function buildStreamWaveQueries(seedTracks, mode, profile) {
+      const suffixes = STREAM_WAVE_QUERY_SUFFIX[mode] || STREAM_WAVE_QUERY_SUFFIX.default
       const queries = []
       const pushQ = (q) => {
         const s = String(q || '').trim()
@@ -521,16 +607,21 @@
       }
       const artists = getMyWaveTopArtists(seedTracks, 10)
       artists.forEach((artist, idx) => {
-        const term = moodTerms[idx % moodTerms.length] || 'similar'
-        pushQ(`${artist} ${term}`)
-        pushQ(`artists like ${artist}`)
-        pushQ(`${artist} ${moodTerms[(idx + 1) % moodTerms.length] || 'music'}`)
+        pushQ(`${artist} ${suffixes[idx % suffixes.length]}`)
+        pushQ(`${artist} ${suffixes[(idx + 1) % suffixes.length]}`)
       })
-      getMyWavePreferenceTerms(profile, 8).forEach((token, idx) => {
-        pushQ(`${token} ${moodTerms[idx % moodTerms.length] || 'music'}`)
+      seedTracks.slice(0, 8).forEach((track, idx) => {
+        const artist = getMyWavePrimaryArtist(track) || String(track?.artist || '').trim()
+        if (artist) pushQ(`${artist} ${suffixes[idx % suffixes.length]}`)
       })
-      moodTerms.forEach((term) => pushQ(`${term} soundcloud mix`))
-      return Array.from(new Set(queries)).slice(0, 24)
+      getMyWavePreferenceTerms(profile, 6).forEach((token, idx) => {
+        if (token.length >= 4) pushQ(`${token} ${suffixes[idx % suffixes.length]}`)
+      })
+      return Array.from(new Set(queries)).slice(0, 22)
+    }
+
+    function buildSoundCloudWaveQueries(seedTracks, mode, profile) {
+      return buildStreamWaveQueries(seedTracks, mode, profile)
     }
 
     async function findMyWaveRecommendations(min = MY_WAVE_MIN_TRACKS, mode, opts = {}) {
@@ -655,8 +746,8 @@
         return filtered
       }
       const queries =
-        sourceMode === 'soundcloud'
-          ? buildSoundCloudWaveQueries(seedTracks, modeId, profile)
+        sourceMode === 'soundcloud' || sourceMode === 'vk'
+          ? buildStreamWaveQueries(seedTracks, modeId, profile)
           : buildMyWaveQueries(seedTracks, modeId, profile)
       const excluded = getMyWaveExcludedSignatures()
       if (excludeSig) excluded.add(excludeSig)
@@ -682,17 +773,18 @@
           .map((track) => sanitizeTrack(track))
           .map((track, idx) => ({ track, idx }))
           .filter(({ track }) => isMyWaveRecommendationAllowed(track, excluded, selected))
-          .map(({ track, idx }) => ({ track, score: scoreMyWaveTrack(track, profile, modeId, idx) }))
+          .map(({ track, idx }) => ({ track, score: scoreMyWaveTrack(track, profile, modeId, idx, sourceMode) }))
           .sort((a, b) => b.score - a.score)
-        const maxPerQuery = sourceMode === 'soundcloud' ? 1 : 3
+        const maxPerQuery = sourceMode === 'soundcloud' || sourceMode === 'vk' ? 1 : 3
         let pickedFromQuery = 0
-        for (const { track } of ranked) {
+        for (const { track, score } of ranked) {
           const sig = normalizeTrackSignature(track)
           if (excludeSig && sig === excludeSig) continue
-          if (sourceMode === 'soundcloud' && seedVariantBases.some((seed) => isTrackVariantOfSeed(track, seed))) continue
+          if ((sourceMode === 'soundcloud' || sourceMode === 'vk') && score < 2) continue
+          if ((sourceMode === 'soundcloud' || sourceMode === 'vk') && seedVariantBases.some((seed) => isTrackVariantOfSeed(track, seed))) continue
           const artist = getMyWavePrimaryArtist(track)
           const artistCount = selectedArtists.get(artist) || 0
-          const artistCap = sourceMode === 'soundcloud' ? 1 : 2
+          const artistCap = sourceMode === 'soundcloud' || sourceMode === 'vk' ? 1 : 2
           if (artist && artistCount >= artistCap && found.length < target - 4) continue
           selected.add(sig)
           if (artist) selectedArtists.set(artist, artistCount + 1)

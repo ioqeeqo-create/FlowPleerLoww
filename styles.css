@@ -3279,7 +3279,15 @@ body.visual-minimal .main-quick-playlist-meta span {
   font-size: clamp(22px, 3vw, 32px);
   font-weight: 700;
   letter-spacing: 0.02em;
-  line-height: 1.08;
+  line-height: 1.12;
+  text-align: center;
+  align-self: center;
+  width: 100%;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 #page-home.media-queue-off .home-clone-artist {
   font-family: var(--font-title);
@@ -5280,12 +5288,13 @@ body.media-player-bar-hidden.media-page-active {
 .my-wave-source-slot--wave-dock .my-wave-settings-dropdown {
   left: 50%;
   right: auto;
-  top: auto;
-  bottom: calc(100% + 10px);
-  transform: translateX(-50%) translateY(6px) scale(0.97);
-  transform-origin: 50% 100%;
+  top: calc(100% + 10px);
+  bottom: auto;
+  transform: translateX(-50%) translateY(-14px) scale(0.94);
+  transform-origin: 50% 0;
 }
-.my-wave-source-slot--wave-dock .my-wave-settings-anchor.is-open .my-wave-settings-dropdown {
+.my-wave-source-slot--wave-dock .my-wave-settings-anchor.is-open .my-wave-settings-dropdown,
+.my-wave-source-slot--wave-dock .my-wave-settings-anchor.is-open .my-wave-settings-dropdown--rich {
   transform: translateX(-50%) translateY(0) scale(1);
 }
 .my-wave-hero--no-hint ~ .my-wave-list {
@@ -11960,6 +11969,51 @@ body.layout-bottom-nav[data-toast-position="bottom-left"] .toast {
   justify-content: center;
   margin: 0 0 12px;
 }
+.auth-token-inline-guide {
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.82);
+  padding: 10px 12px;
+  margin: 0 0 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.auth-token-inline-guide p {
+  margin: 0 0 8px;
+}
+.auth-token-inline-guide p:last-child {
+  margin-bottom: 0;
+}
+.auth-token-guide-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.62);
+  margin: 0 0 8px !important;
+}
+.auth-token-link {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  color: color-mix(in srgb, var(--accent2, #9ca3af) 88%, #fff);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.auth-token-link:hover {
+  color: #fff;
+}
+.auth-token-inline-guide code {
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.25);
+}
 .auth-advanced-sources-btn {
   width: 100%;
   max-width: 520px;
@@ -15532,21 +15586,26 @@ body.flow-slider-style-wave .flow-slider-host--wave .home-slider-wave-canvas {
 #page-home.media-queue-off #home-media-player .home-clone-head {
   display: flex !important;
   flex-direction: column !important;
-  align-items: stretch !important;
+  align-items: center !important;
   gap: 6px !important;
-  padding: 0 4px 0 8px !important;
+  padding: 0 12px !important;
   margin: 0 !important;
   transform: none !important;
   width: 100% !important;
   max-width: 100% !important;
 }
 #page-home.media-queue-off #home-media-player .home-clone-title {
-  text-align: left !important;
-  align-self: flex-start !important;
+  text-align: center !important;
+  align-self: center !important;
   width: 100% !important;
   max-width: 100% !important;
-  line-height: 1.08 !important;
-  word-break: break-word !important;
+  line-height: 1.12 !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+  overflow: hidden !important;
 }
 #page-home.media-queue-off #home-media-player .home-clone-artist {
   text-align: center !important;

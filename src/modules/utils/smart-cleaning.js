@@ -1,6 +1,6 @@
 (() => {
   const YEAR_TOKEN_RE = /\b(?:19|20)\d{2}\b/g
-  const NOISE_BRACKETS_RE = /[\[(](?:official\s*(?:video|audio|lyrics?)|lyric\s*video|visualizer|hd|hq|4k|8k|remaster(?:ed)?|audio|video|prod\.?\s+by|explicit|clean|radio\s*edit|extended|full\s*version|live|clip|teaser|trailer)[^\])]*[\])]/gi
+  const NOISE_BRACKETS_RE = /[\[(](?:official\s*(?:video|audio|lyrics?)|lyric\s*video|visualizer|hd|hq|4k|8k|remaster(?:ed)?|audio|video|prod\.?\s+by|explicit|clean|radio\s*edit|extended|full\s*version|live|clip|teaser|trailer|release|records?|label|exclusive|premiere|promo)[^\])]*[\])]/gi
   const NOISE_WORD_RE = /\b(?:official|video|audio|lyrics?|lyric|visualizer|hq|hd|4k|8k|remaster(?:ed)?|explicit|clean|full\s*version)\b/gi
 
   function smartCleanTrackTitle(title) {

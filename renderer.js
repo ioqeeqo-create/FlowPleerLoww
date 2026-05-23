@@ -105,6 +105,8 @@ let _eqFilters = null
 let _analyser = null
 let _freqData = null
 let _customFontLoadedKey = ''
+let _builtinFontLoaded = false
+const FLOW_BUILTIN_FONT_URL = 'assets/fonts/minecraft.ttf'
 let _authMode = 'login'
 let _profile = null
 let _socialPeer = null
@@ -630,12 +632,12 @@ const defaultVisual = {
   fontMode: 'default',
   customFontName: null,
   customFontData: null,
-  customFontApplyTitle: false,
+  customFontApplyTitle: true,
   uiScale: 100,
   uiScaleWindow: 100,
-  uiScaleFullscreen: 100,
+  uiScaleFullscreen: 95,
   customBg: null,
-  homeSliderStyle: 'line',
+  homeSliderStyle: 'wave',
   homeWidget: { enabled: true, mode: 'bars', image: null, intensity: 100, smoothing: 72 },
   effects: { orbs: false, glow: true, dyncolor: false, accentFromCover: false },
   navActiveHighlight: false,
@@ -769,8 +771,33 @@ function syncFontControls() {
   const status = document.getElementById('custom-font-status')
   if (status) {
     if (mode === 'custom' && v.customFontName) status.textContent = `Свой шрифт: ${v.customFontName}`
-    else status.textContent = 'Используется системный шрифт'
+    else status.textContent = 'Встроенный шрифт Minecraft'
   }
+}
+
+function applyBuiltinFontVars() {
+  const root = document.documentElement
+  root.style.setProperty('--font-ui', "'FlowBuiltinFont', 'DM Sans', sans-serif")
+  const titleOn = getVisual().customFontApplyTitle !== false
+  root.style.setProperty('--font-title', titleOn ? "'FlowBuiltinFont', 'Syne', sans-serif" : "'Syne', sans-serif")
+}
+
+function ensureBuiltinFontLoaded() {
+  if (_builtinFontLoaded) return Promise.resolve(true)
+  return new Promise((resolve) => {
+    try {
+      const ff = new FontFace('FlowBuiltinFont', `url("${FLOW_BUILTIN_FONT_URL}")`)
+      ff.load()
+        .then((loaded) => {
+          document.fonts.add(loaded)
+          _builtinFontLoaded = true
+          resolve(true)
+        })
+        .catch(() => resolve(false))
+    } catch {
+      resolve(false)
+    }
+  })
 }
 
 function applyFontSettings(silent = true) {
@@ -782,8 +809,11 @@ function applyFontSettings(silent = true) {
   }
   const useCustom = v.fontMode === 'custom' && Boolean(v.customFontData)
   if (!useCustom) {
-    setDefault()
-    syncFontControls()
+    ensureBuiltinFontLoaded().then((ok) => {
+      if (ok) applyBuiltinFontVars()
+      else setDefault()
+      syncFontControls()
+    })
     return
   }
   const applyVars = () => {
@@ -1715,7 +1745,7 @@ function refreshCustomBgPreview(fileName = '') {
 }
 
 function normalizeHomeSliderStyle(style) {
-  const s = String(style || 'line').toLowerCase()
+  const s = String(style || 'wave').toLowerCase()
   if (s === 'wave' || s === 'ios') return s
   return 'line'
 }
@@ -4475,8 +4505,8 @@ function syncMediaQueueToggle() {
 }
 
 function getMediaMetaAlign() {
-  const a = String(getSettings().mediaMetaAlign || 'left').trim().toLowerCase()
-  return a === 'center' || a === 'right' ? a : 'left'
+  const a = String(getSettings().mediaMetaAlign || 'center').trim().toLowerCase()
+  return a === 'left' || a === 'right' ? a : 'center'
 }
 
 function getMediaPlayerBarMode() {
@@ -5277,9 +5307,12 @@ function toggleCompactUi() {
 }
 
 function openUrl(url) {
-  if (window.api?.openExternal) window.api.openExternal(url)
-  else window.open(url, '_blank')
+  const safe = String(url || '').trim()
+  if (!/^https?:\/\//i.test(safe)) return
+  if (window.api?.openExternal) window.api.openExternal(safe)
+  else window.open(safe, '_blank', 'noopener,noreferrer')
 }
+window.openUrl = openUrl
 
 const YANDEX_MUSIC_TOKEN_GUIDE_URL = 'https://yandex-music.readthedocs.io/en/main/token.html'
 const YANDEX_MUSIC_OAUTH_URL = 'https://oauth.yandex.ru/authorize?response_type=token&client_id=23cabbbdc6cd418abb4b39c32c41195d'
@@ -6158,19 +6191,27 @@ function setFlowConfigStatus(_text, _isError = false) {
   /* Статус под карточкой пресета убран из UI — оставлена заглушка для совместимости. */
 }
 
-function collectFlowConfigPayload() {
-  const storage = {}
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i)
-    if (!key || !key.startsWith('flow_')) continue
-    storage[key] = localStorage.getItem(key)
+function collectFlowAppearancePresetExport() {
+  const v = getVisual()
+  const visualExport = {
+    blur: v.blur,
+    bright: v.bright,
+    bgType: v.bgType,
+    customBg: v.customBg,
+    homeWidget: v.homeWidget,
   }
   return {
-    format: 'flow-preset-v1',
+    format: 'flow-preset-v2-appearance',
     app: 'Nexory',
     exportedAt: new Date().toISOString(),
-    storage,
+    storage: {
+      flow_visual: JSON.stringify(visualExport),
+    },
   }
+}
+
+function collectFlowConfigPayload() {
+  return collectFlowAppearancePresetExport()
 }
 
 async function presetEmbedInvoke(fileUrl) {
@@ -6271,7 +6312,7 @@ async function exportFlowConfig() {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(link.href)
-    showToast('Nexory preset экспортирован')
+    showToast('Пресет экспортирован: размытие, яркость, фон, визуализатор')
     if (failedEmbed && failedEmbed.length) {
       showToast(
         `Не удалось встроить ${failedEmbed.length} файл(ов) с диска — на другом ПК их не будет.`,
@@ -6291,8 +6332,8 @@ function pickFlowConfigFile() {
 
 /**
  * Импорт .flowpreset / dotify: только внешний вид — подмешиваем в текущий `flow_visual` поля
- * bgType, customBg, gifMode, glass, panelBlur, homeWidget и при наличии `flow_track_covers`.
- * Размытие, яркость и прозрачность стекла (blur, bright, glass) из файла не применяются — остаются текущие значения пользователя.
+ * blur, bright, bgType, customBg (фон/обложка), homeWidget (визуализатор).
+ * Остальные ключи visual (стекло, акценты, шрифты и т.д.) из файла не применяются.
  * Остальные ключи localStorage не меняем (сессия, источники, тема UI и т.д.).
  */
 function applyPresetAppearanceOnly(storage) {
@@ -6311,6 +6352,15 @@ function applyPresetAppearanceOnly(storage) {
 
   const cur = getVisual()
   const patch = {}
+
+  if (Object.prototype.hasOwnProperty.call(incoming, 'blur')) {
+    const n = Number(incoming.blur)
+    if (Number.isFinite(n)) patch.blur = Math.max(0, Math.min(80, n))
+  }
+  if (Object.prototype.hasOwnProperty.call(incoming, 'bright')) {
+    const n = Number(incoming.bright)
+    if (Number.isFinite(n)) patch.bright = Math.max(0, Math.min(100, n))
+  }
 
   if (Object.prototype.hasOwnProperty.call(incoming, 'panelBlur')) {
     const n = Number(incoming.panelBlur)
@@ -15284,9 +15334,10 @@ async function mapScTracks(tracks, clientId) {
       if (tr) transcodingUrl = tr.url
     }
     results.push({
-      title: t.title, artist: t.user?.username || 'вЂ”',
+      title: t.title, artist: t.user?.username || '—',
       url: t.stream_url ? `${t.stream_url}?client_id=${clientId}` : null,
       scTranscoding: transcodingUrl, scClientId: clientId,
+      duration_ms: Number(t?.duration) > 0 ? Number(t.duration) : null,
       cover: t.artwork_url ? t.artwork_url.replace('large','t300x300') : null,
       bg: 'linear-gradient(135deg,#f26f23,#ff5500)', source: 'soundcloud', id: String(t.id)
     })
@@ -15319,6 +15370,7 @@ async function searchVK(q, token) {
   }
   return (data.response?.items||[]).filter(t=>t?.url).map(t => ({
     title: t.title||'Без названия', artist: t.artist||'—', url: t.url,
+    duration: Number(t?.duration) > 0 ? Number(t.duration) : null,
     cover: t.album?.thumb?.photo_300||null, bg: 'linear-gradient(135deg,#4680c2,#5b9bd5)', source:'vk', id:String(t.id)
   }))
 }

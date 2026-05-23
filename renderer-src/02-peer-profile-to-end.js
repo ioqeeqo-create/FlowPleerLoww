@@ -7803,9 +7803,10 @@ async function mapScTracks(tracks, clientId) {
       if (tr) transcodingUrl = tr.url
     }
     results.push({
-      title: t.title, artist: t.user?.username || 'вЂ”',
+      title: t.title, artist: t.user?.username || '—',
       url: t.stream_url ? `${t.stream_url}?client_id=${clientId}` : null,
       scTranscoding: transcodingUrl, scClientId: clientId,
+      duration_ms: Number(t?.duration) > 0 ? Number(t.duration) : null,
       cover: t.artwork_url ? t.artwork_url.replace('large','t300x300') : null,
       bg: 'linear-gradient(135deg,#f26f23,#ff5500)', source: 'soundcloud', id: String(t.id)
     })
@@ -7838,6 +7839,7 @@ async function searchVK(q, token) {
   }
   return (data.response?.items||[]).filter(t=>t?.url).map(t => ({
     title: t.title||'Без названия', artist: t.artist||'—', url: t.url,
+    duration: Number(t?.duration) > 0 ? Number(t.duration) : null,
     cover: t.album?.thumb?.photo_300||null, bg: 'linear-gradient(135deg,#4680c2,#5b9bd5)', source:'vk', id:String(t.id)
   }))
 }
