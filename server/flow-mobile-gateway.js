@@ -22,6 +22,8 @@ const cors = require('cors')
 const axios = require('axios')
 const flowVk = require('../packages/flow-core/providers/vk')
 const flowYandex = require('../packages/flow-core/providers/yandex')
+const yandexRotor = require('../packages/flow-core/yandex-rotor-session')
+const mobilePlaylistImport = require('../packages/flow-core/mobile-playlist-import')
 const { VK_KATE_MOBILE_UA, vkInvokeKateMethod, searchVkTracks } = flowVk
 
 const PORT = Number(process.env.FLOW_MOBILE_GATEWAY_PORT || 3950)
@@ -482,8 +484,33 @@ async function hybridSearch(query, tokens) {
   return { ok: false, error: 'Ничего не найдено (как hybrid десктопа: Spotify→SC→Audius)', mode: 'none', tracks: [] }
 }
 
-function resolveYandexStream(trackId, token) {
-  return flowYandex.resolveYandexStream(trackId, token)
+function resolveYandexStream(trackId, token, opts = {}) {
+  return flowYandex.resolveYandexStream(trackId, token, opts)
+}
+
+async function fetchScTrackMeta(trackId, clientId) {
+  const id = String(trackId || '').replace(/\D/g, '') || String(trackId || '').trim()
+  if (!id) return null
+  const cid = String(clientId || '').trim()
+  if (!cid) return null
+  try {
+    const r = await axios.get(`https://api-v2.soundcloud.com/tracks/${encodeURIComponent(id)}`, {
+      params: { client_id: cid },
+      headers: scApiBrowserHeaders(),
+      timeout: 16000,
+      validateStatus: () => true,
+    })
+    if (r.status === 401 || r.status === 403) return null
+    if (!r.data || typeof r.data !== 'object') return null
+    const trans = r.data.media?.transcodings || []
+    const prog = trans.find((tr) => tr?.format?.protocol === 'progressive')
+    const hls = trans.find((tr) => tr?.format?.protocol === 'hls')
+    const scTranscoding = (prog || hls || trans[0])?.url || null
+    const url = r.data.stream_url ? `${r.data.stream_url}?client_id=${cid}` : null
+    return { scTranscoding, url, scClientId: cid }
+  } catch {
+    return null
+  }
 }
 
 async function resolveScStream(transcodingUrl, clientId) {
@@ -570,7 +597,7 @@ async function resolveYoutubeStream(videoId, preferredInstance) {
   return { ok: false, error: 'YouTube: не удалось получить поток (Invidious/Piped)' }
 }
 
-async function resolveTrack(track, tokens) {
+async function resolveTrack(track, tokens, opts = {}) {
   const source = String(track?.source || '').toLowerCase()
   if (track?.url && (source === 'vk' || source === 'audius' || (source === 'spotify' && track.url))) {
     return { ok: true, url: track.url }
@@ -579,7 +606,7 @@ async function resolveTrack(track, tokens) {
   if (source === 'yandex') {
     const tok = String(tokens?.yandexToken || '').trim()
     if (!tok) return { ok: false, error: 'Нет Яндекс-токена' }
-    return resolveYandexStream(String(track.id), tok)
+    return resolveYandexStream(String(track.id), tok, { preferMobile: !!opts.preferMobile })
   }
   if (source === 'vk') {
     const tok = normalizeAccessToken(tokens?.vkToken || '')
@@ -589,9 +616,16 @@ async function resolveTrack(track, tokens) {
   }
   if (source === 'soundcloud') {
     const cid = track.scClientId || (await resolveScClientId(tokens?.soundcloudClientId || ''))
-    if (track.scTranscoding) return resolveScStream(track.scTranscoding, cid)
-    if (track.url) return { ok: true, url: track.url }
-    return { ok: false, error: 'SoundCloud: нет transcoding' }
+    let transcoding = track.scTranscoding
+    let urlOut = track.url
+    if (!transcoding) {
+      const meta = await fetchScTrackMeta(track.id, cid)
+      if (meta?.scTranscoding) transcoding = meta.scTranscoding
+      if (!urlOut && meta?.url) urlOut = meta.url
+    }
+    if (transcoding) return resolveScStream(transcoding, cid)
+    if (urlOut) return { ok: true, url: urlOut }
+    return { ok: false, error: 'SoundCloud: нет transcoding (импорт — нужен Client ID на VPS или в приложении)' }
   }
   if (source === 'youtube') {
     const vid = track.ytId || track.id
@@ -689,7 +723,7 @@ mobileV1.post('/resolve', async (req, res) => {
     const track = req.body?.track
     const tokens = req.body?.tokens || {}
     if (!track) return res.status(400).json({ ok: false, error: 'Нет track' })
-    const out = await resolveTrack(track, tokens)
+    const out = await resolveTrack(track, tokens, { preferMobile: req.body?.preferMobile !== false })
     return res.json(out)
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || String(e) })
@@ -733,6 +767,184 @@ mobileV1.post('/validate/yandex', async (req, res) => {
     return res.json({ ok: true, login: out.login || '' })
   } catch (e) {
     return res.json({ ok: false, error: e.message })
+  }
+})
+
+mobileV1.post('/yandex/wave/fetch', async (req, res) => {
+  try {
+    const t = String(req.body?.token || req.body?.tokens?.yandexToken || '').trim()
+    if (!t) return res.status(400).json({ ok: false, error: 'Нужен yandexToken' })
+    const out = await yandexRotor.fetchYandexWavePack(t, {
+      mode: req.body?.mode || 'default',
+      resetSession: !!req.body?.resetSession,
+      radioSessionId: req.body?.radioSessionId,
+      batchAnchorId: req.body?.batchAnchorId,
+    })
+    return res.json(out)
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || String(e) })
+  }
+})
+
+mobileV1.post('/yandex/wave/feedback', async (req, res) => {
+  try {
+    const t = String(req.body?.token || req.body?.tokens?.yandexToken || '').trim()
+    if (!t) return res.status(400).json({ ok: false, error: 'Нужен yandexToken' })
+    const out = await yandexRotor.sendYandexWaveFeedback(t, req.body || {})
+    return res.json(out)
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || String(e) })
+  }
+})
+
+function parseTimedLyricsText(input = '') {
+  const text = String(input || '').trim()
+  if (!text) return null
+  if (/\[\d{1,2}:\d{2}/.test(text)) return text
+  return null
+}
+
+async function fetchLyricsForTrack(track, duration = 0, tokens = {}) {
+  const source = String(track?.source || '').toLowerCase()
+  const title = String(track?.title || '').trim()
+  const artist = String(track?.artist || '').trim()
+  const id = String(track?.id || '').split(':')[0]
+
+  if (source === 'yandex' && id) {
+    const tok = String(tokens?.yandexToken || '').trim()
+    const oauth = flowYandex.extractYandexOAuthToken(tok)
+    if (oauth) {
+      const headers = flowYandex.yandexApiHeaders(oauth)
+      try {
+        const meta = await axios.get(`https://api.music.yandex.net/tracks/${encodeURIComponent(id)}/lyrics`, {
+          headers,
+          timeout: 12000,
+          validateStatus: () => true,
+        })
+        const res = meta.data?.result || {}
+        const lyricsId = String(res?.lyrics?.id || res?.id || '').trim()
+        const downloadUrl = res?.downloadUrl || res?.lyrics?.downloadUrl
+        if (downloadUrl) {
+          const dl = await axios.get(downloadUrl, { timeout: 12000, validateStatus: () => true, responseType: 'text' })
+          const synced = parseTimedLyricsText(dl.data)
+          if (synced) return { ok: true, synced, plain: null, source: 'yandex' }
+        }
+        if (lyricsId) {
+          for (const ep of [
+            `/tracks/${encodeURIComponent(id)}/lyrics/${encodeURIComponent(lyricsId)}?format=LRC`,
+            `/tracks/${encodeURIComponent(id)}/lyrics/${encodeURIComponent(lyricsId)}`,
+          ]) {
+            const lr = await axios.get(`https://api.music.yandex.net${ep}`, { headers, timeout: 12000, validateStatus: () => true })
+            const body = lr.data?.result || {}
+            const synced =
+              parseTimedLyricsText(body?.lyrics) ||
+              parseTimedLyricsText(body?.fullLyrics) ||
+              parseTimedLyricsText(body?.text) ||
+              parseTimedLyricsText(body?.lrc)
+            const plain = String(body?.fullLyrics || body?.lyrics || body?.text || '').trim() || null
+            if (synced || plain) return { ok: true, synced, plain, source: 'yandex' }
+          }
+        }
+      } catch {}
+    }
+  }
+
+  const norm = (v) =>
+    String(v || '')
+      .replace(/\[[^\]]*\]/g, ' ')
+      .replace(/\([^)]*\)/g, ' ')
+      .replace(/\b(official|lyrics?|audio|video)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+  const titles = [...new Set([norm(title), title].filter(Boolean))]
+  const artists = [...new Set([norm(artist), artist.split(',')[0]?.trim()].filter(Boolean))]
+  const dur = duration > 0 ? `&duration=${Math.round(duration)}` : ''
+
+  for (const a of artists) {
+    for (const t of titles) {
+      try {
+        const r = await axios.get(
+          `https://lrclib.net/api/get?track_name=${encodeURIComponent(t)}&artist_name=${encodeURIComponent(a)}${dur}`,
+          { headers: { 'User-Agent': 'NexoryMobile/1.0' }, timeout: 12000, validateStatus: () => true },
+        )
+        if (r.status === 200 && r.data) {
+          return {
+            ok: true,
+            synced: r.data.syncedLyrics || null,
+            plain: r.data.plainLyrics || null,
+            source: 'lrclib',
+          }
+        }
+      } catch {}
+    }
+  }
+
+  for (const a of artists) {
+    for (const t of titles) {
+      try {
+        const q = encodeURIComponent(`${a} ${t}`.trim())
+        const r = await axios.get(`https://lrclib.net/api/search?q=${q}`, {
+          headers: { 'User-Agent': 'NexoryMobile/1.0' },
+          timeout: 12000,
+          validateStatus: () => true,
+        })
+        if (r.status === 200 && Array.isArray(r.data) && r.data[0]) {
+          const best = r.data[0]
+          return {
+            ok: true,
+            synced: best.syncedLyrics || null,
+            plain: best.plainLyrics || null,
+            source: 'lrclib',
+          }
+        }
+      } catch {}
+    }
+  }
+
+  for (const a of artists) {
+    if (!a) continue
+    for (const t of titles) {
+      try {
+        const r = await axios.get(
+          `https://api.lyrics.ovh/v1/${encodeURIComponent(a)}/${encodeURIComponent(t)}`,
+          { timeout: 10000, validateStatus: () => true },
+        )
+        if (r.status === 200 && r.data?.lyrics) {
+          return { ok: true, synced: null, plain: String(r.data.lyrics).trim(), source: 'ovh' }
+        }
+      } catch {}
+    }
+  }
+
+  return { ok: false, error: 'Текст не найден' }
+}
+
+mobileV1.post('/lyrics', async (req, res) => {
+  try {
+    const track = req.body?.track
+    if (!track) return res.status(400).json({ ok: false, error: 'Нет track' })
+    const out = await fetchLyricsForTrack(track, Number(req.body?.duration) || 0, req.body?.tokens || {})
+    return res.json(out)
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || String(e) })
+  }
+})
+
+mobileV1.post('/playlist/import', async (req, res) => {
+  try {
+    const tokens = req.body?.tokens || {}
+    const out = await mobilePlaylistImport.importPlaylist({
+      url: req.body?.url,
+      json: req.body?.json,
+      tokens: {
+        yandexToken: tokens.yandexToken || req.body?.yandexToken,
+        vkToken: tokens.vkToken || req.body?.vkToken,
+      },
+    })
+    return res.json(out)
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || String(e) })
   }
 })
 
