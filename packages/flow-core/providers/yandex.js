@@ -106,7 +106,11 @@ async function resolveYandexStream(trackId, oauth, opts = {}) {
       const c = String(s.codec || '').toLowerCase()
       return c === 'aac' || c === 'eac-aac' || c === 'he-aac' || c === 'aac-mp4'
     }).sort(byBr)
-    let sources = mp3.length ? mp3 : aac.length ? aac : [...rows].sort(byBr)
+    // iOS Safari надёжнее с AAC; на десктопе оставляем mp3 приоритетом
+    const preferMobile = !!opts.preferMobile
+    let sources = preferMobile
+      ? (aac.length ? aac : mp3.length ? mp3 : [...rows].sort(byBr))
+      : (mp3.length ? mp3 : aac.length ? aac : [...rows].sort(byBr))
     if (!sources.length) {
       return { ok: false, error: 'Яндекс: нет доступных потоков (mp3/aac)' }
     }

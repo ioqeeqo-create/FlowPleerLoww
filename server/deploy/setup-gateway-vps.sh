@@ -20,6 +20,10 @@ if [ -z "${FLOW_MOBILE_GATEWAY_SECRET:-}" ]; then
   echo "Создай server/.env с FLOW_MOBILE_GATEWAY_SECRET=..."
   exit 1
 fi
+if echo "${FLOW_MOBILE_GATEWAY_SECRET}" | grep -qiE 'вставь|secret_из|example|changeme'; then
+  echo "В server/.env нужен реальный SECRET (64 hex), не текст из инструкции."
+  exit 1
+fi
 
 npm ci --omit=dev 2>/dev/null || npm install --omit=dev
 
@@ -56,8 +60,9 @@ echo "OK: nexory-gateway на :3950 (localhost)"
 
 if command -v nginx >/dev/null 2>&1; then
   cp "${ROOT}/server/deploy/nginx-nexory-gateway.conf" /etc/nginx/sites-available/nexory-gateway
-  rm -f /etc/nginx/sites-enabled/default
+  rm -f /etc/nginx/sites-enabled/nexory-gateway /etc/nginx/sites-enabled/default
   ln -sf /etc/nginx/sites-available/nexory-gateway /etc/nginx/sites-enabled/nexory-gateway
+  test -f /etc/nginx/sites-enabled/nexory-gateway || { echo "nginx: не создался symlink"; exit 1; }
   nginx -t
   systemctl reload nginx
   if curl -sf http://127.0.0.1/health | grep -q '"ok":true'; then
